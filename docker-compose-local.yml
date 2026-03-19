@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (solo para desarrollo local)
+  postgres:
+    image: postgres:16-alpine
+    container_name: jurisprudencia_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: jurisprudencia
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - jurisprudencia_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin (opcional - para administrar PostgreSQL)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: jurisprudencia_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - jurisprudencia_network
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  jurisprudencia_network:
+    driver: bridge

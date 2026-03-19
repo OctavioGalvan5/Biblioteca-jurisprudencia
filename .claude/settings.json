@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/tmp/**)"
+    ],
+    "additionalDirectories": [
+      "c:\\tmp"
+    ]
+  }
+}

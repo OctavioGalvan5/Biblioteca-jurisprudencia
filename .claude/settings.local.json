@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p backend/app/{api/routes,core,services,models,schemas} frontend)",
+      "Bash(ls \"C:\\\\Users\\\\octav\\\\OneDrive\\\\Escritorio\\\\Estudio TYE\\\\Biblioteca jurisprudencia\\\\frontend\\\\src\\\\app\\\\sentencias\"\" && ls \"C:UsersoctavOneDriveEscritorioEstudio TYEBiblioteca jurisprudenciafrontendsrcappsentencias[id]\\\\\")",
+      "Bash(grep -E \"\\\\.py$\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
