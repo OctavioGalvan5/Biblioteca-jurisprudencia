@@ -99,14 +99,14 @@ export const deleteSentencia = async (id: number): Promise<void> => {
 };
 
 export const listJueces = async (activo?: boolean): Promise<Juez[]> => {
-  const response = await api.get<Juez[]>('/jueces', {
+  const response = await api.get<Juez[]>('/jueces/', {
     params: activo !== undefined ? { activo } : {},
   });
   return response.data;
 };
 
 export const createJuez = async (data: { nombre: string; apellido: string; activo?: boolean }): Promise<Juez> => {
-  const response = await api.post<Juez>('/jueces', data);
+  const response = await api.post<Juez>('/jueces/', data);
   return response.data;
 };
 

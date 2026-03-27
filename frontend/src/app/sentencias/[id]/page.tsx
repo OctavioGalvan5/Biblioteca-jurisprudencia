@@ -156,7 +156,7 @@ export default function DetalleSentenciaPage() {
           <div className="card p-5">
             <h3 className="font-semibold text-purple-950 text-sm mb-3">Documento original</h3>
             <a
-              href={sentencia.url_minio}
+              href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/sentencias/${sentencia.id}/pdf`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-all duration-200 text-sm font-medium shadow-sm shadow-purple-200"

@@ -165,3 +165,29 @@ def delete_sentencia(sentencia_id: int, db: Session = Depends(get_db)):
     db.delete(sentencia)
     db.commit()
     return None
+
+
+@router.get("/{sentencia_id}/pdf")
+def get_sentencia_pdf(sentencia_id: int, db: Session = Depends(get_db)):
+    """Proxy para servir el PDF desde MinIO, evitando problemas de mixed content"""
+    from fastapi.responses import Response
+    from ...core.minio_client import minio_client
+
+    sentencia = db.query(Sentencia).filter(Sentencia.id == sentencia_id).first()
+
+    if not sentencia:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sentencia no encontrada")
+
+    try:
+        object_name = sentencia.url_minio.split(f"/{minio_client.bucket_name}/")[-1]
+        pdf_data = minio_client.get_file(object_name)
+        return Response(
+            content=pdf_data,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{sentencia.hash}.pdf"',
+                "Cache-Control": "public, max-age=86400",
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener PDF: {e}")

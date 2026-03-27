@@ -187,7 +187,7 @@ export default function EditSentenciaPage() {
             <p className="text-xs text-purple-500 mt-0.5">PDF almacenado en MinIO</p>
           </div>
           <a
-            href={sentencia?.url_minio}
+            href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/sentencias/${id}/pdf`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-4 py-2 bg-purple-700 text-white text-sm rounded-lg hover:bg-purple-800 transition-all duration-200 font-medium shadow-sm shadow-purple-200"
