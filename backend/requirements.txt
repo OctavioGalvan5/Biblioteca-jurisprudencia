@@ -16,6 +16,7 @@ minio==7.2.9
 
 # Procesamiento PDF
 PyPDF2==3.0.1
+PyMuPDF==1.24.4
 pdfplumber==0.11.4
 pdf2image==1.17.0
 Pillow==11.0.0

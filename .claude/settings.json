@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Read(//c/tmp/**)"
+      "Read(//c/tmp/**)",
+      "Bash(mkdir \"c:/Users/octav/OneDrive/Escritorio/Estudio TYE/Biblioteca jurisprudencia/frontend/public\")",
+      "Bash(touch \"c:/Users/octav/OneDrive/Escritorio/Estudio TYE/Biblioteca jurisprudencia/frontend/public/.gitkeep\")"
     ],
     "additionalDirectories": [
       "c:\\tmp"
