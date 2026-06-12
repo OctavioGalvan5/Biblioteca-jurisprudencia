@@ -14,6 +14,10 @@ import os
 # Asegurar que Python encuentre el paquete 'app'
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Cargar .env desde la raíz del proyecto (un nivel arriba de backend/)
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
 from sqlalchemy import text
 from app.core.database import engine, SessionLocal
 from app.models.database_models import Sentencia, SentenciaVector
@@ -56,12 +60,12 @@ def embed_all():
                     db.add(SentenciaVector(sentencia_id=s.id, embedding=vector))
                 db.commit()
                 ok += 1
-                print(f"  [{i}/{total}] ✅ {label[:80]}")
+                print(f"  [{i}/{total}] OK {label[:80]}")
             except Exception as e:
                 db.rollback()
-                print(f"  [{i}/{total}] ❌ {label[:80]}\n         Error: {e}")
+                print(f"  [{i}/{total}] ERROR {label[:80]}\n         {e}")
 
-        print(f"\n✅ Listo: {ok}/{total} embeddings generados.")
+        print(f"\nListo: {ok}/{total} embeddings generados.")
 
     finally:
         db.close()
