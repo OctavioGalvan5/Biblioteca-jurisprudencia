@@ -1,13 +1,11 @@
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey, ARRAY, CheckConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from datetime import datetime
 from pgvector.sqlalchemy import Vector
 from ..core.database import Base
 
 
 class Juez(Base):
-    """Modelo de Jueces"""
     __tablename__ = "jueces"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -17,15 +15,10 @@ class Juez(Base):
     fecha_alta = Column(DateTime, default=func.now())
     fecha_baja = Column(DateTime, nullable=True)
 
-    # Relación con sentencias
     sentencias = relationship("SentenciaJuez", back_populates="juez")
-
-    def __repr__(self):
-        return f"<Juez {self.nombre} {self.apellido}>"
 
 
 class Sentencia(Base):
-    """Modelo de Sentencias"""
     __tablename__ = "sentencias"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -39,7 +32,7 @@ class Sentencia(Base):
         String(20),
         CheckConstraint("jurisdiccion IN ('federal', 'provincial')"),
         nullable=True,
-        index=True
+        index=True,
     )
     palabras_clave = Column(ARRAY(Text), nullable=True)
     contenido = Column(Text, nullable=True)
@@ -48,37 +41,23 @@ class Sentencia(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-    # Relación con jueces
     jueces = relationship("SentenciaJuez", back_populates="sentencia", cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f"<Sentencia {self.nro_expediente}>"
 
 
 class SentenciaJuez(Base):
-    """Tabla de relación muchos a muchos entre Sentencias y Jueces"""
     __tablename__ = "sentencias_jueces"
 
     id = Column(Integer, primary_key=True, index=True)
     sentencia_id = Column(Integer, ForeignKey("sentencias.id", ondelete="CASCADE"), nullable=False)
     juez_id = Column(Integer, ForeignKey("jueces.id"), nullable=False)
 
-    # Relaciones
     sentencia = relationship("Sentencia", back_populates="jueces")
     juez = relationship("Juez", back_populates="sentencias")
 
-    def __repr__(self):
-        return f"<SentenciaJuez sentencia_id={self.sentencia_id} juez_id={self.juez_id}>"
-
 
 class SentenciaVector(Base):
-    """Modelo para almacenar vectores de sentencias (para RAG)"""
     __tablename__ = "sentencias_vectors"
 
     id = Column(Integer, primary_key=True, index=True)
     sentencia_id = Column(Integer, ForeignKey("sentencias.id", ondelete="CASCADE"), nullable=False, unique=True)
     embedding = Column(Vector(1536), nullable=True)
-    metadata_json = Column(Text, nullable=True)
-
-    def __repr__(self):
-        return f"<SentenciaVector sentencia_id={self.sentencia_id}>"
