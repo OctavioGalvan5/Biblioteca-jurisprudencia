@@ -74,11 +74,11 @@ def _buscar_similares(query: str, db: Session, jurisdiccion=None, fecha_desde=No
     where = " AND ".join(filters)
 
     sql = text(f"""
-        SELECT s.id, 1 - (sv.embedding <=> :vector::vector) AS similitud
+        SELECT s.id, 1 - (sv.embedding <=> CAST(:vector AS vector)) AS similitud
         FROM sentencias_vectors sv
         JOIN sentencias s ON s.id = sv.sentencia_id
         WHERE {where}
-        ORDER BY sv.embedding <=> :vector::vector
+        ORDER BY sv.embedding <=> CAST(:vector AS vector)
         LIMIT :limit
     """)
 
