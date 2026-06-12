@@ -7,6 +7,53 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Adjunta el token en cada request si existe
+api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token');
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Si el servidor responde 401, borra el token y redirige al login
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      const isLoginPage = window.location.pathname === '/login';
+      if (!isLoginPage) {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+
+export const login = async (username: string, password: string): Promise<void> => {
+  const body = new URLSearchParams({ username, password });
+  const response = await axios.post<{ access_token: string; token_type: string }>(
+    `${API_URL}/auth/login`,
+    body,
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+  );
+  localStorage.setItem('auth_token', response.data.access_token);
+};
+
+export const logout = (): void => {
+  localStorage.removeItem('auth_token');
+};
+
+export const isAuthenticated = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem('auth_token');
+};
+
+// ── Tipos ───────────────────────────────────────────────────────────────────
+
 export interface Juez {
   id: number;
   nombre: string;
@@ -58,11 +105,42 @@ export interface UploadResponse {
   jueces_pendientes: JuezPendiente[];
 }
 
+export interface BulkResultItem {
+  archivo: string;
+  sentencia_id?: number;
+  caratula?: string;
+  motivo?: string;
+}
+
+export interface BulkUploadResponse {
+  procesados: number;
+  exitosas: BulkResultItem[];
+  duplicadas: BulkResultItem[];
+  errores: BulkResultItem[];
+}
+
+// ── Sentencias ───────────────────────────────────────────────────────────────
+
 export const uploadSentencia = async (file: File): Promise<UploadResponse> => {
   const formData = new FormData();
   formData.append('file', file);
   const response = await api.post<UploadResponse>('/upload/sentencia', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const uploadBulk = async (
+  files: File[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<BulkUploadResponse> => {
+  const formData = new FormData();
+  files.forEach((f) => formData.append('files', f));
+  const response = await api.post<BulkUploadResponse>('/upload/bulk', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) onProgress(e.loaded, e.total);
+    },
   });
   return response.data;
 };
@@ -74,7 +152,7 @@ export const getSentencia = async (id: number): Promise<Sentencia> => {
 
 export const updateSentencia = async (
   id: number,
-  data: Partial<Sentencia> & { jueces_ids?: number[] }
+  data: Partial<Sentencia> & { jueces_ids?: number[] },
 ): Promise<Sentencia> => {
   const response = await api.put<Sentencia>(`/sentencias/${id}`, data);
   return response.data;
@@ -98,6 +176,8 @@ export const deleteSentencia = async (id: number): Promise<void> => {
   await api.delete(`/sentencias/${id}`);
 };
 
+// ── Jueces ───────────────────────────────────────────────────────────────────
+
 export const listJueces = async (activo?: boolean): Promise<Juez[]> => {
   const response = await api.get<Juez[]>('/jueces/', {
     params: activo !== undefined ? { activo } : {},
@@ -112,7 +192,7 @@ export const createJuez = async (data: { nombre: string; apellido: string; activ
 
 export const confirmarJueces = async (
   sentencia_id: number,
-  decisiones: DecisionJuez[]
+  decisiones: DecisionJuez[],
 ): Promise<{ message: string; sentencia_id: number; jueces_ids: number[] }> => {
   const response = await api.post('/upload/confirmar-jueces', { sentencia_id, decisiones });
   return response.data;

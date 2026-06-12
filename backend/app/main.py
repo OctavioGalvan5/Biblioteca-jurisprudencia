@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .core.config import settings
 from .core.database import engine, Base
-from .api.routes import upload, sentencias, jueces
+from .api.routes import upload, sentencias, jueces, auth
 
 # Crear tablas en la base de datos automáticamente
 print("⏳ Conectando a PostgreSQL y creando tablas...")
@@ -35,6 +35,7 @@ app.add_middleware(
 )
 
 # Incluir routers
+app.include_router(auth.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(sentencias.router, prefix="/api")
 app.include_router(jueces.router, prefix="/api")

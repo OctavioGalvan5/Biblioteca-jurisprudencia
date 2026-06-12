@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import List
 
 from difflib import SequenceMatcher
 import io
@@ -7,6 +8,7 @@ from datetime import datetime
 
 from ...core.database import get_db
 from ...core.minio_client import minio_client
+from ...core.auth import get_current_user
 from ...services.pdf_processor import pdf_processor
 from ...services.ai_extractor import ai_extractor
 from ...models.database_models import Sentencia, Juez, SentenciaJuez
@@ -50,7 +52,8 @@ def _encontrar_coincidencia(nombre_extraido: str, jueces_db: list) -> tuple:
 @router.post("/sentencia", response_model=SentenciaUploadResponse)
 async def upload_sentencia(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: str = Depends(get_current_user),
 ):
     """
     Endpoint para subir una sentencia en PDF.
@@ -234,7 +237,8 @@ async def upload_sentencia(
 @router.post("/confirmar-jueces")
 async def confirmar_jueces(
     request: ConfirmarJuecesRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: str = Depends(get_current_user),
 ):
     """
     Confirma las decisiones del usuario sobre los jueces de una sentencia.
@@ -309,4 +313,94 @@ async def confirmar_jueces(
         "message": "Jueces confirmados correctamente",
         "sentencia_id": sentencia.id,
         "jueces_ids": jueces_vinculados_ids,
+    }
+
+
+@router.post("/bulk")
+async def upload_bulk(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    _: str = Depends(get_current_user),
+):
+    """
+    Carga masiva de sentencias en PDF.
+    Extrae metadata con IA pero omite la extracción de jueces (asignación manual posterior).
+    Devuelve un resumen con exitosas, duplicadas y errores.
+    """
+    exitosas = []
+    duplicadas = []
+    errores = []
+
+    for file in files:
+        nombre = file.filename or "archivo desconocido"
+
+        if file.content_type != "application/pdf":
+            errores.append({"archivo": nombre, "motivo": "No es un PDF"})
+            continue
+
+        try:
+            file_content = await file.read()
+            file_hash = pdf_processor.calculate_hash(file_content)
+
+            existing = db.query(Sentencia).filter(Sentencia.hash == file_hash).first()
+            if existing:
+                duplicadas.append({"archivo": nombre, "sentencia_id": existing.id})
+                continue
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            object_name = f"{file_hash}_{timestamp}.pdf"
+            file_io = io.BytesIO(file_content)
+            minio_url = minio_client.upload_file(
+                file_data=file_io,
+                object_name=object_name,
+                content_type="application/pdf",
+            )
+
+            full_text = pdf_processor.extract_text(file_content)
+
+            try:
+                metadata = ai_extractor.extract_metadata_from_text(full_text)
+            except Exception:
+                metadata = {}
+
+            fecha_sentencia = None
+            if metadata.get("fecha_sentencia"):
+                try:
+                    from datetime import datetime as dt
+                    fecha_sentencia = dt.strptime(metadata["fecha_sentencia"], "%Y-%m-%d").date()
+                except Exception:
+                    pass
+
+            nueva = Sentencia(
+                hash=file_hash,
+                url_minio=minio_url,
+                caratula=metadata.get("caratula"),
+                nro_expediente=metadata.get("nro_expediente"),
+                fecha_sentencia=fecha_sentencia,
+                instancia=metadata.get("instancia"),
+                organo=metadata.get("organo"),
+                jurisdiccion=metadata.get("jurisdiccion"),
+                palabras_clave=metadata.get("palabras_clave", []),
+                contenido=full_text,
+                resumen=metadata.get("resumen"),
+            )
+            db.add(nueva)
+            db.commit()
+            db.refresh(nueva)
+
+            exitosas.append({
+                "archivo": nombre,
+                "sentencia_id": nueva.id,
+                "caratula": nueva.caratula,
+            })
+
+        except Exception as e:
+            db.rollback()
+            errores.append({"archivo": nombre, "motivo": str(e)})
+
+    return {
+        "procesados": len(files),
+        "exitosas": exitosas,
+        "duplicadas": duplicadas,
+        "errores": errores,
     }

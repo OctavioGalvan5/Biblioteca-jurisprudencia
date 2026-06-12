@@ -1,15 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { BookOpen, Upload, Search } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { BookOpen, Upload, LogIn, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { isAuthenticated, logout } from '@/lib/api';
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setLoggedIn(isAuthenticated());
+  }, [pathname]);
+
+  const handleLogout = () => {
+    logout();
+    setLoggedIn(false);
+    router.push('/sentencias');
+  };
 
   const links = [
     { href: '/sentencias', label: 'Biblioteca', icon: BookOpen },
-    { href: '/cargar', label: 'Cargar Sentencia', icon: Upload },
+    ...(loggedIn ? [{ href: '/cargar', label: 'Cargar', icon: Upload }] : []),
   ];
 
   return (
@@ -31,10 +45,10 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Nav links */}
+          {/* Nav links + auth */}
           <nav className="flex items-center gap-1">
             {links.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href;
+              const active = pathname === href || pathname.startsWith(href + '/');
               return (
                 <Link
                   key={href}
@@ -50,6 +64,28 @@ export default function Navbar() {
                 </Link>
               );
             })}
+
+            {loggedIn ? (
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-purple-200 hover:bg-purple-900 hover:text-white transition-all duration-200 ml-1"
+              >
+                <LogOut className="h-4 w-4" />
+                Salir
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ml-1 ${
+                  pathname === '/login'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-purple-200 hover:bg-purple-900 hover:text-white'
+                }`}
+              >
+                <LogIn className="h-4 w-4" />
+                Ingresar
+              </Link>
+            )}
           </nav>
         </div>
       </div>

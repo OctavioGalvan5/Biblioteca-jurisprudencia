@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ...core.database import get_db
+from ...core.auth import get_current_user
 from ...models.database_models import Juez
 from ...schemas.sentencia_schemas import JuezCreate, JuezResponse
 
@@ -25,7 +26,7 @@ def list_jueces(
 
 
 @router.post("/", response_model=JuezResponse, status_code=status.HTTP_201_CREATED)
-def create_juez(juez_data: JuezCreate, db: Session = Depends(get_db)):
+def create_juez(juez_data: JuezCreate, db: Session = Depends(get_db), _: str = Depends(get_current_user)):
     """Crear un nuevo juez"""
     nuevo_juez = Juez(**juez_data.model_dump())
     db.add(nuevo_juez)
@@ -38,7 +39,8 @@ def create_juez(juez_data: JuezCreate, db: Session = Depends(get_db)):
 def update_juez(
     juez_id: int,
     juez_data: JuezCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: str = Depends(get_current_user),
 ):
     """Actualizar un juez"""
     juez = db.query(Juez).filter(Juez.id == juez_id).first()
@@ -58,7 +60,7 @@ def update_juez(
 
 
 @router.delete("/{juez_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_juez(juez_id: int, db: Session = Depends(get_db)):
+def delete_juez(juez_id: int, db: Session = Depends(get_db), _: str = Depends(get_current_user)):
     """Eliminar un juez (soft delete - marcar como inactivo)"""
     juez = db.query(Juez).filter(Juez.id == juez_id).first()
 

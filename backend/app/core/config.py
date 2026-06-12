@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     # CORS
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # Auth
+    JWT_SECRET_KEY: str = "changeme"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 480  # 8 horas
+    AUTH_USERNAME: str = "admin"
+    AUTH_PASSWORD: str = "changeme"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

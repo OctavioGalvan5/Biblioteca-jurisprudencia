@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from typing import List, Optional
 
 from ...core.database import get_db
+from ...core.auth import get_current_user
 from ...models.database_models import Sentencia, Juez, SentenciaJuez
 from ...schemas.sentencia_schemas import (
     SentenciaResponse,
@@ -116,7 +117,8 @@ def get_sentencia(sentencia_id: int, db: Session = Depends(get_db)):
 def update_sentencia(
     sentencia_id: int,
     sentencia_data: SentenciaUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: str = Depends(get_current_user),
 ):
     """Actualizar una sentencia (no se puede modificar hash ni url_minio)"""
     sentencia = db.query(Sentencia).filter(Sentencia.id == sentencia_id).first()
@@ -148,7 +150,7 @@ def update_sentencia(
 
 
 @router.delete("/{sentencia_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_sentencia(sentencia_id: int, db: Session = Depends(get_db)):
+def delete_sentencia(sentencia_id: int, db: Session = Depends(get_db), _: str = Depends(get_current_user)):
     """Eliminar una sentencia"""
     sentencia = db.query(Sentencia).filter(Sentencia.id == sentencia_id).first()
 
