@@ -11,7 +11,8 @@ from ...core.minio_client import minio_client
 from ...core.auth import get_current_user
 from ...services.pdf_processor import pdf_processor
 from ...services.ai_extractor import ai_extractor
-from ...models.database_models import Sentencia, Juez, SentenciaJuez
+from ...services.embedding_service import embedding_service
+from ...models.database_models import Sentencia, Juez, SentenciaJuez, SentenciaVector
 from ...schemas.sentencia_schemas import (
     SentenciaUploadResponse, JuezPendiente, ConfirmarJuecesRequest
 )
@@ -171,6 +172,13 @@ async def upload_sentencia(
         db.add(nueva_sentencia)
         db.commit()
         db.refresh(nueva_sentencia)
+
+        try:
+            vector = embedding_service.embed_sentencia(nueva_sentencia)
+            db.add(SentenciaVector(sentencia_id=nueva_sentencia.id, embedding=vector))
+            db.commit()
+        except Exception as emb_err:
+            print(f"⚠️ Embedding no generado para sentencia {nueva_sentencia.id}: {emb_err}")
 
     except Exception as e:
         db.rollback()
@@ -387,6 +395,13 @@ async def upload_bulk(
             db.add(nueva)
             db.commit()
             db.refresh(nueva)
+
+            try:
+                vector = embedding_service.embed_sentencia(nueva)
+                db.add(SentenciaVector(sentencia_id=nueva.id, embedding=vector))
+                db.commit()
+            except Exception as emb_err:
+                print(f"⚠️ Embedding no generado para {nombre}: {emb_err}")
 
             exitosas.append({
                 "archivo": nombre,

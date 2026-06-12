@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, F
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
+from pgvector.sqlalchemy import Vector
 from ..core.database import Base
 
 
@@ -76,9 +77,8 @@ class SentenciaVector(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     sentencia_id = Column(Integer, ForeignKey("sentencias.id", ondelete="CASCADE"), nullable=False, unique=True)
-    # El vector se manejará con pgvector
-    # embedding = Column(Vector(1536))  # Se configurará cuando instalemos pgvector
-    metadata_json = Column(Text, nullable=True)  # JSON con metadata para RAG
+    embedding = Column(Vector(1536), nullable=True)
+    metadata_json = Column(Text, nullable=True)
 
     def __repr__(self):
         return f"<SentenciaVector sentencia_id={self.sentencia_id}>"

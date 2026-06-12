@@ -1,14 +1,28 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from .core.config import settings
 from .core.database import engine, Base
-from .api.routes import upload, sentencias, jueces, auth
+from .api.routes import upload, sentencias, jueces, auth, chat
 
-# Crear tablas en la base de datos automáticamente
 print("⏳ Conectando a PostgreSQL y creando tablas...")
 try:
+    # Habilitar extensión pgvector antes de crear tablas
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+
     Base.metadata.create_all(bind=engine)
-    print("✅ Base de datos lista (tablas creadas/verificadas)")
+
+    # Agregar columna embedding si la tabla ya existía sin ella
+    with engine.connect() as conn:
+        conn.execute(text("""
+            ALTER TABLE sentencias_vectors
+            ADD COLUMN IF NOT EXISTS embedding vector(1536)
+        """))
+        conn.commit()
+
+    print("✅ Base de datos lista")
 except Exception as e:
     print(f"❌ Error al conectar con PostgreSQL: {e}")
     print(f"   URL: {settings.DATABASE_URL}")
@@ -39,6 +53,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(sentencias.router, prefix="/api")
 app.include_router(jueces.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 
 @app.get("/")

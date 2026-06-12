@@ -176,6 +176,50 @@ export const deleteSentencia = async (id: number): Promise<void> => {
   await api.delete(`/sentencias/${id}`);
 };
 
+// ── Chat / Búsqueda semántica ─────────────────────────────────────────────────
+
+export interface SentenciaResult {
+  id: number;
+  caratula: string | null;
+  nro_expediente: string | null;
+  fecha_sentencia: string | null;
+  instancia: string | null;
+  organo: string | null;
+  jurisdiccion: 'federal' | 'provincial' | null;
+  palabras_clave: string[] | null;
+  resumen: string | null;
+  similitud: number;
+  jueces: { id: number; nombre: string; apellido: string }[];
+}
+
+export interface ChatFilters {
+  jurisdiccion?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}
+
+export const chatBuscar = async (
+  query: string,
+  filters?: ChatFilters & { limit?: number },
+): Promise<SentenciaResult[]> => {
+  const response = await api.post<{ resultados: SentenciaResult[] }>('/chat/buscar', {
+    query,
+    ...filters,
+  });
+  return response.data.resultados;
+};
+
+export const chatPreguntar = async (
+  pregunta: string,
+  filters?: ChatFilters,
+): Promise<{ respuesta: string; fuentes: SentenciaResult[] }> => {
+  const response = await api.post<{ respuesta: string; fuentes: SentenciaResult[] }>(
+    '/chat/preguntar',
+    { pregunta, ...filters },
+  );
+  return response.data;
+};
+
 // ── Jueces ───────────────────────────────────────────────────────────────────
 
 export const listJueces = async (activo?: boolean): Promise<Juez[]> => {
