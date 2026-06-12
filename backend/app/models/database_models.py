@@ -61,3 +61,14 @@ class SentenciaVector(Base):
     id = Column(Integer, primary_key=True, index=True)
     sentencia_id = Column(Integer, ForeignKey("sentencias.id", ondelete="CASCADE"), nullable=False, unique=True)
     embedding = Column(Vector(1536), nullable=True)
+
+
+class SentenciaChunk(Base):
+    __tablename__ = "sentencias_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sentencia_id = Column(Integer, ForeignKey("sentencias.id", ondelete="CASCADE"), nullable=False, index=True)
+    chunk_index = Column(Integer, nullable=False)
+    tipo_seccion = Column(String(50), nullable=True)
+    contenido = Column(Text, nullable=False)
+    embedding = Column(Vector(1536), nullable=True)

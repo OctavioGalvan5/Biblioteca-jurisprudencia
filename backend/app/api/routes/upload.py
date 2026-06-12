@@ -12,7 +12,8 @@ from ...core.auth import get_current_user
 from ...services.pdf_processor import pdf_processor
 from ...services.ai_extractor import ai_extractor
 from ...services.embedding_service import embedding_service
-from ...models.database_models import Sentencia, Juez, SentenciaJuez, SentenciaVector
+from ...services.chunking_service import chunking_service
+from ...models.database_models import Sentencia, Juez, SentenciaJuez, SentenciaChunk
 from ...schemas.sentencia_schemas import (
     SentenciaUploadResponse, JuezPendiente, ConfirmarJuecesRequest
 )
@@ -174,11 +175,19 @@ async def upload_sentencia(
         db.refresh(nueva_sentencia)
 
         try:
-            vector = embedding_service.embed_sentencia(nueva_sentencia)
-            db.add(SentenciaVector(sentencia_id=nueva_sentencia.id, embedding=vector))
+            chunks = chunking_service.chunk_sentencia(nueva_sentencia.contenido or "")
+            for i, chunk in enumerate(chunks):
+                emb = embedding_service.embed(chunk["contenido"])
+                db.add(SentenciaChunk(
+                    sentencia_id=nueva_sentencia.id,
+                    chunk_index=i,
+                    tipo_seccion=chunk["tipo"],
+                    contenido=chunk["contenido"],
+                    embedding=emb,
+                ))
             db.commit()
         except Exception as emb_err:
-            print(f"⚠️ Embedding no generado para sentencia {nueva_sentencia.id}: {emb_err}")
+            print(f"⚠️ Chunks no generados para sentencia {nueva_sentencia.id}: {emb_err}")
 
     except Exception as e:
         db.rollback()
@@ -397,11 +406,19 @@ async def upload_bulk(
             db.refresh(nueva)
 
             try:
-                vector = embedding_service.embed_sentencia(nueva)
-                db.add(SentenciaVector(sentencia_id=nueva.id, embedding=vector))
+                chunks = chunking_service.chunk_sentencia(nueva.contenido or "")
+                for i, chunk in enumerate(chunks):
+                    emb = embedding_service.embed(chunk["contenido"])
+                    db.add(SentenciaChunk(
+                        sentencia_id=nueva.id,
+                        chunk_index=i,
+                        tipo_seccion=chunk["tipo"],
+                        contenido=chunk["contenido"],
+                        embedding=emb,
+                    ))
                 db.commit()
             except Exception as emb_err:
-                print(f"⚠️ Embedding no generado para {nombre}: {emb_err}")
+                print(f"⚠️ Chunks no generados para {nombre}: {emb_err}")
 
             exitosas.append({
                 "archivo": nombre,

@@ -20,6 +20,10 @@ try:
             ALTER TABLE sentencias_vectors
             ADD COLUMN IF NOT EXISTS embedding vector(1536)
         """))
+        conn.execute(text("""
+            ALTER TABLE sentencias_chunks
+            ADD COLUMN IF NOT EXISTS embedding vector(1536)
+        """))
         conn.commit()
 
     print("✅ Base de datos lista")

@@ -3,11 +3,10 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from pydantic import BaseModel
 from typing import Optional
-import json
 
 from ...core.database import get_db
 from ...core.auth import get_current_user
-from ...models.database_models import Sentencia, SentenciaVector, SentenciaJuez
+from ...models.database_models import Sentencia, SentenciaJuez
 from ...services.embedding_service import embedding_service
 from openai import OpenAI
 from ...core.config import settings
@@ -58,27 +57,34 @@ def _buscar_similares(query: str, db: Session, jurisdiccion=None, fecha_desde=No
 
     vector_str = "[" + ",".join(str(v) for v in vector) + "]"
 
-    filters = ["sv.embedding IS NOT NULL"]
+    sent_filters = []
     params: dict = {"vector": vector_str, "limit": limit}
 
     if jurisdiccion:
-        filters.append("s.jurisdiccion = :jurisdiccion")
+        sent_filters.append("s.jurisdiccion = :jurisdiccion")
         params["jurisdiccion"] = jurisdiccion
     if fecha_desde:
-        filters.append("s.fecha_sentencia >= :fecha_desde")
+        sent_filters.append("s.fecha_sentencia >= :fecha_desde")
         params["fecha_desde"] = fecha_desde
     if fecha_hasta:
-        filters.append("s.fecha_sentencia <= :fecha_hasta")
+        sent_filters.append("s.fecha_sentencia <= :fecha_hasta")
         params["fecha_hasta"] = fecha_hasta
 
-    where = " AND ".join(filters)
+    extra_where = ("AND " + " AND ".join(sent_filters)) if sent_filters else ""
 
+    # Best-matching chunk per sentencia, ordered by similarity descending
     sql = text(f"""
-        SELECT s.id, 1 - (sv.embedding <=> CAST(:vector AS vector)) AS similitud
-        FROM sentencias_vectors sv
-        JOIN sentencias s ON s.id = sv.sentencia_id
-        WHERE {where}
-        ORDER BY sv.embedding <=> CAST(:vector AS vector)
+        SELECT id, similitud FROM (
+            SELECT DISTINCT ON (s.id)
+                s.id,
+                1 - (sc.embedding <=> CAST(:vector AS vector)) AS similitud
+            FROM sentencias_chunks sc
+            JOIN sentencias s ON s.id = sc.sentencia_id
+            WHERE sc.embedding IS NOT NULL
+            {extra_where}
+            ORDER BY s.id, sc.embedding <=> CAST(:vector AS vector)
+        ) ranked
+        ORDER BY similitud DESC
         LIMIT :limit
     """)
 
