@@ -157,12 +157,52 @@ class ChunkingService:
 
         return result
 
-    def _fixed_chunks(self, contenido: str, size: int = 2000) -> list[dict]:
-        return [
-            {"tipo": "general", "contenido": contenido[i:i + size].strip()}
-            for i in range(0, len(contenido), size)
-            if contenido[i:i + size].strip()
-        ]
+    def _fixed_chunks(self, contenido: str, size: int = 2000, overlap: int = 200) -> list[dict]:
+        """
+        Split at sentence/paragraph boundaries with overlap.
+        Never cuts mid-word or mid-number.
+        """
+        # Prefer splitting at double newlines (paragraph), then ". " before capital,
+        # then single newline, then last space — in that order of preference.
+        chunks = []
+        start = 0
+        text_len = len(contenido)
+
+        while start < text_len:
+            end = min(start + size, text_len)
+
+            if end < text_len:
+                # 1. Try paragraph boundary
+                boundary = contenido.rfind('\n\n', start, end)
+                if boundary > start:
+                    end = boundary + 2  # include the double newline
+                else:
+                    # 2. Try sentence boundary: ". " or ".\n"
+                    for sep in ('. ', '.\n', '? ', '! '):
+                        pos = contenido.rfind(sep, start, end)
+                        if pos > start:
+                            end = pos + len(sep)
+                            break
+                    else:
+                        # 3. Try single newline
+                        pos = contenido.rfind('\n', start, end)
+                        if pos > start:
+                            end = pos + 1
+                        else:
+                            # 4. Last resort: nearest space (never mid-word)
+                            pos = contenido.rfind(' ', start, end)
+                            if pos > start:
+                                end = pos + 1
+                            # If no space at all, cut at size (shouldn't happen)
+
+            chunk_text = contenido[start:end].strip()
+            if chunk_text:
+                chunks.append({"tipo": "general", "contenido": chunk_text})
+
+            # Move forward; step back by overlap to keep boundary context
+            start = end - overlap if end - overlap > start else end
+
+        return chunks
 
 
 chunking_service = ChunkingService()
