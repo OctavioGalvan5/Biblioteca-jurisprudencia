@@ -1,87 +1,149 @@
 import hashlib
 import io
-import json
-from typing import BinaryIO, Dict, Any, List, Optional
+import base64
+from typing import Optional
 import PyPDF2
 import pdfplumber
 import fitz  # PyMuPDF
 from PIL import Image
-import base64
+
+
+MIN_TEXT_CHARS = 300  # Below this total → likely a scanned PDF
 
 
 class PDFProcessor:
-    """Servicio para procesar archivos PDF"""
 
     @staticmethod
     def calculate_hash(file_data: bytes) -> str:
-        """
-        Calcular hash SHA256 del archivo
-
-        Args:
-            file_data: Contenido del archivo en bytes
-
-        Returns:
-            Hash SHA256 en hexadecimal
-        """
         return hashlib.sha256(file_data).hexdigest()
 
     @staticmethod
     def extract_text(file_data: bytes) -> str:
         """
-        Extraer texto completo del PDF
-
-        Args:
-            file_data: Contenido del PDF en bytes
-
-        Returns:
-            Texto extraído del PDF
+        Extract text from PDF with automatic OCR fallback.
+        Strategy: native extraction → Tesseract → GPT-4o Vision
         """
-        text_parts = []
+        text = PDFProcessor._extract_text_native(file_data)
+        if len(text.strip()) >= MIN_TEXT_CHARS:
+            return text
+
+        print(f"Texto insuficiente ({len(text)} chars) - intentando OCR con Tesseract...")
+        try:
+            ocr_text = PDFProcessor._extract_text_tesseract(file_data)
+            if len(ocr_text.strip()) >= MIN_TEXT_CHARS:
+                print(f"Tesseract OK: {len(ocr_text)} chars")
+                return ocr_text
+            print(f"Tesseract insuficiente ({len(ocr_text)} chars) - probando Vision...")
+        except Exception as e:
+            print(f"Tesseract no disponible: {e}")
 
         try:
-            # Intentar con pdfplumber (mejor para tablas y texto complejo)
+            from ..core.config import settings
+            vision_text = PDFProcessor._extract_text_vision(file_data, settings.OPENAI_API_KEY)
+            if vision_text.strip():
+                print(f"GPT-4o Vision OK: {len(vision_text)} chars")
+                return vision_text
+        except Exception as e:
+            print(f"GPT-4o Vision fallo: {e}")
+
+        # Return whatever we have even if short
+        return text
+
+    @staticmethod
+    def _extract_text_native(file_data: bytes) -> str:
+        text_parts = []
+        try:
             with pdfplumber.open(io.BytesIO(file_data)) as pdf:
                 for page in pdf.pages:
                     page_text = page.extract_text()
                     if page_text:
                         text_parts.append(page_text)
-
         except Exception as e:
-            print(f"Error con pdfplumber: {e}. Intentando con PyPDF2...")
-
-            # Fallback a PyPDF2
+            print(f"pdfplumber fallo: {e} — intentando PyPDF2...")
             try:
-                pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_data))
-                for page in pdf_reader.pages:
+                reader = PyPDF2.PdfReader(io.BytesIO(file_data))
+                for page in reader.pages:
                     page_text = page.extract_text()
                     if page_text:
                         text_parts.append(page_text)
             except Exception as e2:
-                print(f"Error con PyPDF2: {e2}")
-                raise Exception("No se pudo extraer texto del PDF")
+                print(f"PyPDF2 fallo: {e2}")
 
-        full_text = "\n\n".join(text_parts)
-        return full_text.strip()
+        return "\n\n".join(text_parts).strip()
 
-    # Palabras clave para detectar la página de firmas
+    @staticmethod
+    def _render_pages(file_data: bytes, dpi_scale: float = 2.0):
+        """Yield (page_num, PIL Image) for each page using PyMuPDF."""
+        doc = fitz.open(stream=file_data, filetype="pdf")
+        mat = fitz.Matrix(dpi_scale, dpi_scale)
+        try:
+            for i, page in enumerate(doc):
+                pix = page.get_pixmap(matrix=mat)
+                img = Image.open(io.BytesIO(pix.tobytes("png")))
+                yield i, img
+        finally:
+            doc.close()
+
+    @staticmethod
+    def _extract_text_tesseract(file_data: bytes) -> str:
+        import pytesseract  # optional dep — ImportError caught by caller
+
+        parts = []
+        for _, img in PDFProcessor._render_pages(file_data):
+            text = pytesseract.image_to_string(img, lang="spa+eng", config="--psm 1")
+            if text.strip():
+                parts.append(text.strip())
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _extract_text_vision(file_data: bytes, api_key: str, max_pages: int = 30) -> str:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        parts = []
+
+        for i, img in PDFProcessor._render_pages(file_data):
+            if i >= max_pages:
+                break
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            img_b64 = base64.b64encode(buf.getvalue()).decode()
+
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Extrae todo el texto de esta página de una sentencia judicial argentina. "
+                                "Devuelve solo el texto tal como aparece, sin comentarios ni explicaciones."
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{img_b64}",
+                                "detail": "high",
+                            },
+                        },
+                    ],
+                }],
+                max_tokens=4000,
+            )
+            text = resp.choices[0].message.content
+            if text and text.strip():
+                parts.append(text.strip())
+
+        return "\n\n".join(parts)
+
     FIRMA_KEYWORDS = ["digitally signed", "firmado digitalmente", "firma"]
 
     @staticmethod
     def convert_last_page_to_image(file_data: bytes) -> Optional[str]:
-        """
-        Convertir la página de firmas del PDF a imagen (para extraer jueces).
-        Escanea las últimas páginas buscando la que contiene firmas digitales,
-        en lugar de asumir siempre que es la última página.
-
-        Args:
-            file_data: Contenido del PDF en bytes
-
-        Returns:
-            Imagen de la página de firmas en base64
-        """
+        """Convert the signature page to base64 PNG for judge extraction."""
         try:
             doc = fitz.open(stream=file_data, filetype="pdf")
-
             if len(doc) == 0:
                 doc.close()
                 return None
@@ -89,66 +151,47 @@ class PDFProcessor:
             n = len(doc)
             firma_page = None
 
-            # Buscar en las últimas 5 páginas (de atrás hacia adelante)
             for i in range(n - 1, max(n - 6, -1), -1):
                 page = doc[i]
                 text = page.get_text().lower()
                 if any(kw in text for kw in PDFProcessor.FIRMA_KEYWORDS):
                     firma_page = page
-                    print(f"✅ Página de firmas detectada: página {i + 1} de {n}")
+                    print(f"Pagina de firmas detectada: pagina {i + 1} de {n}")
                     break
 
-            # Fallback a última página si no se encontró ninguna con firmas
             if firma_page is None:
                 firma_page = doc[-1]
-                print(f"⚠️ Sin página de firmas detectada, usando última página ({n})")
+                print(f"Sin pagina de firmas detectada, usando ultima pagina ({n})")
 
-            # Renderizar a imagen con buena resolución (2x zoom = ~200 DPI)
             mat = fitz.Matrix(2, 2)
             pix = firma_page.get_pixmap(matrix=mat)
-
-            # Convertir a bytes PNG
             img_bytes = pix.tobytes("png")
             doc.close()
 
-            # Convertir a base64
             img_base64 = base64.b64encode(img_bytes).decode()
-
-            print(f"✅ Página de firmas convertida a imagen ({pix.width}x{pix.height}px)")
+            print(f"Pagina de firmas convertida ({pix.width}x{pix.height}px)")
             return img_base64
 
         except Exception as e:
-            print(f"❌ Error al convertir página a imagen: {e}")
+            print(f"Error al convertir pagina a imagen: {e}")
             return None
 
     @staticmethod
-    def get_pdf_metadata(file_data: bytes) -> Dict[str, Any]:
-        """
-        Extraer metadata del PDF
-
-        Args:
-            file_data: Contenido del PDF en bytes
-
-        Returns:
-            Diccionario con metadata
-        """
+    def get_pdf_metadata(file_data: bytes) -> dict:
         try:
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_data))
-            metadata = pdf_reader.metadata
-
+            reader = PyPDF2.PdfReader(io.BytesIO(file_data))
+            meta = reader.metadata
             return {
-                "num_pages": len(pdf_reader.pages),
-                "author": metadata.get("/Author", None) if metadata else None,
-                "creator": metadata.get("/Creator", None) if metadata else None,
-                "producer": metadata.get("/Producer", None) if metadata else None,
-                "subject": metadata.get("/Subject", None) if metadata else None,
-                "title": metadata.get("/Title", None) if metadata else None,
+                "num_pages": len(reader.pages),
+                "author": meta.get("/Author") if meta else None,
+                "creator": meta.get("/Creator") if meta else None,
+                "producer": meta.get("/Producer") if meta else None,
+                "subject": meta.get("/Subject") if meta else None,
+                "title": meta.get("/Title") if meta else None,
             }
         except Exception as e:
             print(f"Error al extraer metadata: {e}")
             return {"num_pages": 0}
 
 
-# Instancia global
 pdf_processor = PDFProcessor()
-
