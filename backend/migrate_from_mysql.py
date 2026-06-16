@@ -43,6 +43,7 @@ from app.core.database import engine, SessionLocal
 from app.core.minio_client import minio_client
 from app.models.database_models import Sentencia, SentenciaChunk, Juez, SentenciaJuez
 from app.services.pdf_processor import pdf_processor
+from app.services.ai_extractor import ai_extractor
 from app.services.embedding_service import embedding_service
 from app.services.chunking_service import chunking_service
 from sqlalchemy import text
@@ -158,12 +159,28 @@ def split_nombre_apellido(nombre_raw: str) -> tuple[str, str]:
     return " ".join(partes[:-1]).title(), partes[-1].title()
 
 
-def vincular_jueces(sentencia_id: int, jueces_raw: str | None, db):
+def _jueces_raw_useless(jueces_raw: str | None) -> bool:
+    """True when the MySQL jueces field has no usable names."""
+    if not jueces_raw or not jueces_raw.strip():
+        return True
+    return any(phrase in jueces_raw.lower() for phrase in NO_JUDGE_PHRASES)
+
+
+def extract_jueces_via_vision(pdf_bytes: bytes, db) -> list[str]:
+    """Fallback: extract judge names from the PDF signature page using GPT-4o Vision."""
+    img_b64 = pdf_processor.convert_last_page_to_image(pdf_bytes)
+    if not img_b64:
+        return []
+    known = [{"nombre": j.nombre, "apellido": j.apellido}
+             for j in db.query(Juez).filter(Juez.activo == True).all()]
+    return ai_extractor.extract_judges_from_image(img_b64, known)
+
+
+def vincular_jueces(sentencia_id: int, nombres: list[str], db):
     """
-    Parse jueces_raw, fuzzy-match or create each judge, link to sentencia.
+    Fuzzy-match or create each judge name, then link to sentencia.
     Same logic as the upload confirm-jueces endpoint.
     """
-    nombres = parse_judge_names(jueces_raw)
     if not nombres:
         return 0
 
@@ -171,6 +188,9 @@ def vincular_jueces(sentencia_id: int, jueces_raw: str | None, db):
     vinculados = 0
 
     for nombre_raw in nombres:
+        nombre_raw = nombre_raw.strip()
+        if not nombre_raw:
+            continue
         mejor_juez, sim = find_best_match(nombre_raw, jueces_db)
 
         if sim >= SIMILITUD_LINK and mejor_juez:
@@ -331,8 +351,14 @@ def migrate(limit: int | None = None, offset: int = 0):
                 db.commit()
                 db.refresh(nueva)
 
-                # Link judges
-                n_jueces = vincular_jueces(nueva.id, row.get("jueces"), db)
+                # Link judges: use MySQL field or fall back to GPT-4o Vision
+                jueces_raw = row.get("jueces")
+                if _jueces_raw_useless(jueces_raw):
+                    print(f"       -> sin jueces en MySQL, usando Vision...")
+                    nombres_jueces = extract_jueces_via_vision(pdf_bytes, db)
+                else:
+                    nombres_jueces = parse_judge_names(jueces_raw)
+                n_jueces = vincular_jueces(nueva.id, nombres_jueces, db)
                 db.commit()
 
                 # Chunks + embeddings
