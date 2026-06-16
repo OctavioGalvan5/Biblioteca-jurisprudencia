@@ -274,10 +274,92 @@ def setup_pgvector():
 
 # ── Migration ─────────────────────────────────────────────────────────────────
 
+def _process_row(row: dict, i: int, total: int) -> str:
+    """Process a single sentencia. Returns 'ok', 'dup', or 'err'."""
+    label = (row.get("caratula") or f"MySQL ID {row['id']}")[:80]
+    drive_url = row["drive_link"]
+
+    # Fresh DB session per sentencia — avoids idle connection drops from pgbouncer
+    db = SessionLocal()
+    try:
+        print(f"  [{i}/{total}] Descargando: {label[:60]}")
+        pdf_bytes = download_from_drive(drive_url)
+        time.sleep(DOWNLOAD_DELAY)
+
+        file_hash = sha256(pdf_bytes)
+        existing = db.query(Sentencia).filter(Sentencia.hash == file_hash).first()
+        if existing:
+            print(f"  [{i}/{total}] DUP (ID {existing.id})")
+            return "dup"
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        object_name = f"{file_hash}_{ts}.pdf"
+        minio_url = minio_client.upload_file(
+            file_data=io.BytesIO(pdf_bytes),
+            object_name=object_name,
+            content_type="application/pdf",
+        )
+
+        contenido = pdf_processor.extract_text(pdf_bytes)
+
+        resumen_parts = [p for p in [
+            row.get("resumen"), row.get("fundamentos"), row.get("normativa"),
+        ] if p and p.strip()]
+
+        nueva = Sentencia(
+            hash=file_hash,
+            url_minio=minio_url,
+            caratula=row.get("caratula"),
+            nro_expediente=row.get("numero_expediente"),
+            fecha_sentencia=row.get("fecha_sentencia"),
+            instancia=row.get("instancia"),
+            organo=row.get("juzgado"),
+            jurisdiccion=map_jurisdiccion(row.get("jurisdiccion")),
+            palabras_clave=parse_palabras_clave(row.get("palabras_clave")),
+            contenido=contenido,
+            resumen="\n\n".join(resumen_parts) if resumen_parts else None,
+        )
+        db.add(nueva)
+        db.commit()
+        db.refresh(nueva)
+
+        # Judges
+        jueces_raw = row.get("jueces")
+        if _jueces_raw_useless(jueces_raw):
+            print(f"       -> sin jueces en MySQL, usando Vision...")
+            nombres_jueces = extract_jueces_via_vision(pdf_bytes, db)
+        else:
+            nombres_jueces = parse_judge_names(jueces_raw)
+        n_jueces = vincular_jueces(nueva.id, nombres_jueces, db)
+        db.commit()
+
+        # Chunks + embeddings
+        chunks = chunking_service.chunk_sentencia(contenido)
+        for idx, chunk in enumerate(chunks):
+            emb = embedding_service.embed(chunk["contenido"])
+            db.add(SentenciaChunk(
+                sentencia_id=nueva.id,
+                chunk_index=idx,
+                tipo_seccion=chunk["tipo"],
+                contenido=chunk["contenido"],
+                embedding=emb,
+            ))
+        db.commit()
+
+        print(f"  [{i}/{total}] OK | {len(chunks)} chunks | {n_jueces} jueces | {label}")
+        return "ok"
+
+    except Exception as e:
+        db.rollback()
+        print(f"  [{i}/{total}] ERROR {label}\n           {e}")
+        return "err"
+    finally:
+        db.close()
+
+
 def migrate(limit: int | None = None, offset: int = 0):
     setup_pgvector()
     mysql = connect_mysql()
-    db = SessionLocal()
 
     try:
         cur = mysql.cursor()
@@ -306,88 +388,18 @@ def migrate(limit: int | None = None, offset: int = 0):
         ok = dup = err = 0
 
         for i, row in enumerate(rows, 1):
-            label = (row.get("caratula") or f"MySQL ID {row['id']}")[:80]
-            drive_url = row["drive_link"]
-
-            try:
-                print(f"  [{i}/{total}] Descargando: {label[:60]}")
-                pdf_bytes = download_from_drive(drive_url)
-                time.sleep(DOWNLOAD_DELAY)
-
-                file_hash = sha256(pdf_bytes)
-                existing = db.query(Sentencia).filter(Sentencia.hash == file_hash).first()
-                if existing:
-                    print(f"  [{i}/{total}] DUP (ID {existing.id})")
-                    dup += 1
-                    continue
-
-                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                object_name = f"{file_hash}_{ts}.pdf"
-                minio_url = minio_client.upload_file(
-                    file_data=io.BytesIO(pdf_bytes),
-                    object_name=object_name,
-                    content_type="application/pdf",
-                )
-
-                contenido = pdf_processor.extract_text(pdf_bytes)
-
-                resumen_parts = [p for p in [
-                    row.get("resumen"), row.get("fundamentos"), row.get("normativa"),
-                ] if p and p.strip()]
-
-                nueva = Sentencia(
-                    hash=file_hash,
-                    url_minio=minio_url,
-                    caratula=row.get("caratula"),
-                    nro_expediente=row.get("numero_expediente"),
-                    fecha_sentencia=row.get("fecha_sentencia"),
-                    instancia=row.get("instancia"),
-                    organo=row.get("juzgado"),
-                    jurisdiccion=map_jurisdiccion(row.get("jurisdiccion")),
-                    palabras_clave=parse_palabras_clave(row.get("palabras_clave")),
-                    contenido=contenido,
-                    resumen="\n\n".join(resumen_parts) if resumen_parts else None,
-                )
-                db.add(nueva)
-                db.commit()
-                db.refresh(nueva)
-
-                # Link judges: use MySQL field or fall back to GPT-4o Vision
-                jueces_raw = row.get("jueces")
-                if _jueces_raw_useless(jueces_raw):
-                    print(f"       -> sin jueces en MySQL, usando Vision...")
-                    nombres_jueces = extract_jueces_via_vision(pdf_bytes, db)
-                else:
-                    nombres_jueces = parse_judge_names(jueces_raw)
-                n_jueces = vincular_jueces(nueva.id, nombres_jueces, db)
-                db.commit()
-
-                # Chunks + embeddings
-                chunks = chunking_service.chunk_sentencia(contenido)
-                for idx, chunk in enumerate(chunks):
-                    emb = embedding_service.embed(chunk["contenido"])
-                    db.add(SentenciaChunk(
-                        sentencia_id=nueva.id,
-                        chunk_index=idx,
-                        tipo_seccion=chunk["tipo"],
-                        contenido=chunk["contenido"],
-                        embedding=emb,
-                    ))
-                db.commit()
-
+            result = _process_row(row, i, total)
+            if result == "ok":
                 ok += 1
-                print(f"  [{i}/{total}] OK | {len(chunks)} chunks | {n_jueces} jueces | {label}")
-
-            except Exception as e:
-                db.rollback()
+            elif result == "dup":
+                dup += 1
+            else:
                 err += 1
-                print(f"  [{i}/{total}] ERROR {label}\n           {e}")
 
         print(f"\n{'='*60}")
         print(f"Migradas: {ok}  |  Duplicadas: {dup}  |  Errores: {err}  |  Total: {total}")
 
     finally:
-        db.close()
         mysql.close()
 
 
