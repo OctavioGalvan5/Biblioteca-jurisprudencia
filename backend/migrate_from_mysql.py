@@ -40,6 +40,7 @@ import pymysql
 import requests
 
 from app.core.database import engine, SessionLocal
+engine.echo = False  # suppress SQL logs regardless of DEBUG setting
 from app.core.minio_client import minio_client
 from app.models.database_models import Sentencia, SentenciaChunk, Juez, SentenciaJuez
 from app.services.pdf_processor import pdf_processor
