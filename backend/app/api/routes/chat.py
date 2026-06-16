@@ -14,6 +14,11 @@ from ...core.config import settings
 router = APIRouter(prefix="/chat", tags=["Chat"])
 _openai = OpenAI(api_key=settings.OPENAI_API_KEY)
 
+MIN_SIMILARITY = 0.28
+
+# Considerandos rank highest — legal reasoning is most useful for search
+TIPO_BOOST = {"considerando": 0.03, "resuelve": 0.01, "vistos": 0.0, "general": 0.0}
+
 
 class BuscarRequest(BaseModel):
     query: str
@@ -49,7 +54,15 @@ def _sentencia_to_dict(s: Sentencia, similitud: float) -> dict:
     }
 
 
-def _buscar_similares(query: str, db: Session, jurisdiccion=None, fecha_desde=None, fecha_hasta=None, limit=8):
+def _buscar_similares(
+    query: str,
+    db: Session,
+    jurisdiccion=None,
+    fecha_desde=None,
+    fecha_hasta=None,
+    limit=8,
+    min_similarity=MIN_SIMILARITY,
+):
     try:
         vector = embedding_service.embed(query)
     except Exception as e:
@@ -57,43 +70,56 @@ def _buscar_similares(query: str, db: Session, jurisdiccion=None, fecha_desde=No
 
     vector_str = "[" + ",".join(str(v) for v in vector) + "]"
 
-    sent_filters = []
-    params: dict = {"vector": vector_str, "limit": limit}
+    filters = ["sc.embedding IS NOT NULL"]
+    params: dict = {"vector": vector_str, "candidate_limit": limit * 6}
 
     if jurisdiccion:
-        sent_filters.append("s.jurisdiccion = :jurisdiccion")
+        filters.append("s.jurisdiccion = :jurisdiccion")
         params["jurisdiccion"] = jurisdiccion
     if fecha_desde:
-        sent_filters.append("s.fecha_sentencia >= :fecha_desde")
+        filters.append("s.fecha_sentencia >= :fecha_desde")
         params["fecha_desde"] = fecha_desde
     if fecha_hasta:
-        sent_filters.append("s.fecha_sentencia <= :fecha_hasta")
+        filters.append("s.fecha_sentencia <= :fecha_hasta")
         params["fecha_hasta"] = fecha_hasta
 
-    extra_where = ("AND " + " AND ".join(sent_filters)) if sent_filters else ""
+    where = " AND ".join(filters)
 
-    # Best-matching chunk per sentencia, ordered by similarity descending
+    # Retrieve more candidates from chunks, deduplicate and re-rank in Python
     sql = text(f"""
-        SELECT id, similitud FROM (
-            SELECT DISTINCT ON (s.id)
-                s.id,
-                1 - (sc.embedding <=> CAST(:vector AS vector)) AS similitud
-            FROM sentencias_chunks sc
-            JOIN sentencias s ON s.id = sc.sentencia_id
-            WHERE sc.embedding IS NOT NULL
-            {extra_where}
-            ORDER BY s.id, sc.embedding <=> CAST(:vector AS vector)
-        ) ranked
-        ORDER BY similitud DESC
-        LIMIT :limit
+        SELECT sc.sentencia_id,
+               sc.tipo_seccion,
+               1 - (sc.embedding <=> CAST(:vector AS vector)) AS similitud
+        FROM sentencias_chunks sc
+        JOIN sentencias s ON s.id = sc.sentencia_id
+        WHERE {where}
+        ORDER BY sc.embedding <=> CAST(:vector AS vector)
+        LIMIT :candidate_limit
     """)
 
     rows = db.execute(sql, params).fetchall()
     if not rows:
         return []
 
-    ids = [r[0] for r in rows]
-    sim_map = {r[0]: r[1] for r in rows}
+    # Deduplicate: per sentencia keep best boosted score
+    best: dict[int, float] = {}
+    for sentencia_id, tipo_seccion, sim in rows:
+        boosted = sim + TIPO_BOOST.get(tipo_seccion or "general", 0.0)
+        if sentencia_id not in best or boosted > best[sentencia_id]:
+            best[sentencia_id] = boosted
+
+    # Apply similarity threshold and sort
+    filtered = [
+        (sid, score) for sid, score in best.items() if score >= min_similarity
+    ]
+    filtered.sort(key=lambda x: x[1], reverse=True)
+    top = filtered[:limit]
+
+    if not top:
+        return []
+
+    ids = [sid for sid, _ in top]
+    sim_map = {sid: score for sid, score in top}
 
     sentencias = (
         db.query(Sentencia)
@@ -122,7 +148,7 @@ def buscar(req: BuscarRequest, db: Session = Depends(get_db)):
 def preguntar(req: PreguntarRequest, db: Session = Depends(get_db), _: str = Depends(get_current_user)):
     """
     Responde una pregunta usando las sentencias más relevantes como contexto (RAG).
-    Requiere autenticación para evitar abuso (consume tokens de GPT).
+    Requiere autenticación.
     """
     fuentes = _buscar_similares(
         req.pregunta, db,
@@ -130,6 +156,7 @@ def preguntar(req: PreguntarRequest, db: Session = Depends(get_db), _: str = Dep
         fecha_desde=req.fecha_desde,
         fecha_hasta=req.fecha_hasta,
         limit=5,
+        min_similarity=0.22,  # slightly lower threshold for RAG to have more context
     )
     if not fuentes:
         return {
@@ -137,12 +164,11 @@ def preguntar(req: PreguntarRequest, db: Session = Depends(get_db), _: str = Dep
             "fuentes": [],
         }
 
-    # Armar contexto para GPT: caratula + organo + fecha + resumen + primeros 3000 chars del contenido
-    contexto_parts = []
     ids_fuentes = [f["id"] for f in fuentes]
     sentencias_completas = db.query(Sentencia).filter(Sentencia.id.in_(ids_fuentes)).all()
     contenidos = {s.id: s.contenido for s in sentencias_completas}
 
+    contexto_parts = []
     for f in fuentes:
         sid = f["id"]
         contenido_truncado = (contenidos.get(sid) or "")[:3000]
