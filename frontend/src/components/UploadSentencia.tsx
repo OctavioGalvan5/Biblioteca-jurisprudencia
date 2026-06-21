@@ -232,7 +232,7 @@ export default function UploadSentencia({ onSuccess }: UploadSentenciaProps) {
           <div className="bg-purple-50 px-5 py-4 flex items-center gap-3 border-b border-purple-200">
             <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
             <div className="flex-1">
-              <p className="font-semibold text-purple-900 text-sm">Sentencia subida — revisá los jueces detectados</p>
+              <p className="font-semibold text-purple-900 text-sm">Sentencia subida — revisá los firmantes detectados</p>
               {fileName && <p className="text-purple-500 text-xs mt-0.5">{fileName}</p>}
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function UploadSentencia({ onSuccess }: UploadSentenciaProps) {
           {/* Footer con botón confirmar */}
           <div className="px-5 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-4">
             <p className="text-xs text-gray-500">
-              Revisá que cada juez esté correctamente identificado antes de continuar.
+              Revisá que cada firmante esté correctamente identificado antes de continuar.
             </p>
             <button
               onClick={handleConfirmarJueces}
@@ -352,7 +352,7 @@ function JuezRevisionRow({ decision: d, todosJueces, disabled, onChange }: JuezR
       {/* Panel según tipo seleccionado */}
       {d.tipo === 'vincular' && (
         <div className="ml-1">
-          <label className="text-xs text-gray-500 block mb-1">Juez en la base de datos</label>
+          <label className="text-xs text-gray-500 block mb-1">Firmante en la base de datos</label>
           <div className="relative">
             <select
               disabled={disabled}
@@ -360,7 +360,7 @@ function JuezRevisionRow({ decision: d, todosJueces, disabled, onChange }: JuezR
               onChange={e => onChange({ juez_id: e.target.value ? Number(e.target.value) : null })}
               className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 pr-8 appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 disabled:opacity-50"
             >
-              <option value="">— Seleccioná un juez —</option>
+              <option value="">— Seleccioná un firmante —</option>
               {todosJueces.map(j => (
                 <option key={j.id} value={j.id}>
                   {j.nombre} {j.apellido}
@@ -413,7 +413,7 @@ function JuezRevisionRow({ decision: d, todosJueces, disabled, onChange }: JuezR
 
       {d.tipo === 'ignorar' && (
         <p className="ml-1 text-xs text-gray-400 italic">
-          Este juez no será vinculado a la sentencia.
+          Este firmante no será vinculado a la sentencia.
         </p>
       )}
     </div>

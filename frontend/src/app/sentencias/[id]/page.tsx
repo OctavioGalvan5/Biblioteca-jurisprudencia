@@ -171,7 +171,7 @@ export default function DetalleSentenciaPage() {
             <div className="card p-5">
               <h3 className="font-semibold text-purple-950 text-sm mb-3 flex items-center gap-2">
                 <User className="h-4 w-4 text-purple-500" />
-                Jueces
+                Firmantes
               </h3>
               <ul className="space-y-2">
                 {sentencia.jueces.map(j => (

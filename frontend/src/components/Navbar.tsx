@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, Upload, Search, LogIn, LogOut } from 'lucide-react';
+import { BookOpen, Upload, Search, LogIn, LogOut, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { isAuthenticated, logout } from '@/lib/api';
 
@@ -24,7 +24,10 @@ export default function Navbar() {
   const links = [
     { href: '/sentencias', label: 'Biblioteca', icon: BookOpen },
     { href: '/buscar', label: 'Buscar', icon: Search },
-    ...(loggedIn ? [{ href: '/cargar', label: 'Cargar', icon: Upload }] : []),
+    ...(loggedIn ? [
+      { href: '/cargar', label: 'Cargar', icon: Upload },
+      { href: '/firmantes', label: 'Firmantes', icon: Users },
+    ] : []),
   ];
 
   return (

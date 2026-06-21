@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
-import { Save, ExternalLink, Loader2, ArrowLeft } from 'lucide-react';
+import { Save, ExternalLink, Loader2, ArrowLeft, X, Search } from 'lucide-react';
 import { getSentencia, updateSentencia, listJueces, Sentencia, Juez } from '@/lib/api';
 
 export default function EditSentenciaPage() {
@@ -13,7 +13,9 @@ export default function EditSentenciaPage() {
   const id = parseInt(params.id as string);
 
   const [sentencia, setSentencia] = useState<Sentencia | null>(null);
-  const [jueces, setJueces] = useState<Juez[]>([]);
+  const [todosFirmantes, setTodosFirmantes] = useState<Juez[]>([]);
+  const [firmantesSeleccionados, setFirmantesSeleccionados] = useState<Juez[]>([]);
+  const [busquedaFirmante, setBusquedaFirmante] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,8 @@ export default function EditSentenciaPage() {
           listJueces(true),
         ]);
         setSentencia(sentenciaData);
-        setJueces(juecesData);
+        setTodosFirmantes(juecesData);
+        setFirmantesSeleccionados(sentenciaData.jueces);
 
         setValue('caratula', sentenciaData.caratula || '');
         setValue('nro_expediente', sentenciaData.nro_expediente || '');
@@ -38,7 +41,6 @@ export default function EditSentenciaPage() {
         setValue('jurisdiccion', sentenciaData.jurisdiccion || '');
         setValue('palabras_clave', sentenciaData.palabras_clave?.join(', ') || '');
         setValue('resumen', sentenciaData.resumen || '');
-        sentenciaData.jueces.forEach(j => setValue(`juez_${j.id}`, true));
       } catch {
         setError('Error al cargar la sentencia');
       } finally {
@@ -48,6 +50,20 @@ export default function EditSentenciaPage() {
     loadData();
   }, [id, setValue]);
 
+  const firmantesDisponibles = todosFirmantes.filter(f =>
+    !firmantesSeleccionados.some(s => s.id === f.id) &&
+    `${f.nombre} ${f.apellido}`.toLowerCase().includes(busquedaFirmante.toLowerCase())
+  );
+
+  function agregarFirmante(f: Juez) {
+    setFirmantesSeleccionados(prev => [...prev, f]);
+    setBusquedaFirmante('');
+  }
+
+  function quitarFirmante(id: number) {
+    setFirmantesSeleccionados(prev => prev.filter(f => f.id !== id));
+  }
+
   const onSubmit = async (data: any) => {
     setSaving(true);
     setError(null);
@@ -55,7 +71,6 @@ export default function EditSentenciaPage() {
       const palabrasClave = data.palabras_clave
         ? data.palabras_clave.split(',').map((k: string) => k.trim()).filter(Boolean)
         : [];
-      const juecesIds = jueces.filter(j => data[`juez_${j.id}`]).map(j => j.id);
 
       await updateSentencia(id, {
         caratula: data.caratula || null,
@@ -66,7 +81,7 @@ export default function EditSentenciaPage() {
         jurisdiccion: data.jurisdiccion || null,
         palabras_clave: palabrasClave,
         resumen: data.resumen || null,
-        jueces_ids: juecesIds,
+        jueces_ids: firmantesSeleccionados.map(f => f.id),
       });
       router.push(`/sentencias/${id}`);
     } catch (err: any) {
@@ -157,25 +172,52 @@ export default function EditSentenciaPage() {
           </div>
         </div>
 
-        {/* Jueces */}
+        {/* Firmantes */}
         <div className="card p-6">
-          <h2 className="font-semibold text-purple-950 mb-5 pb-3 border-b border-gray-100">Jueces que Firmaron</h2>
-          {jueces.length === 0 ? (
-            <p className="text-sm text-gray-400">No hay jueces cargados en el sistema.</p>
-          ) : (
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {jueces.map(j => (
-                <label key={j.id} className="flex items-center gap-2.5 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    {...register(`juez_${j.id}`)}
-                    className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
-                  />
-                  <span className="text-sm text-gray-700 group-hover:text-purple-800">
-                    {j.nombre} {j.apellido}
-                  </span>
-                </label>
-              ))}
+          <h2 className="font-semibold text-purple-950 mb-5 pb-3 border-b border-gray-100">Firmantes</h2>
+
+          {/* Seleccionados */}
+          <div className="flex flex-wrap gap-2 mb-4 min-h-[2rem]">
+            {firmantesSeleccionados.length === 0 && (
+              <p className="text-sm text-gray-400 italic">Sin firmantes asignados.</p>
+            )}
+            {firmantesSeleccionados.map(f => (
+              <span key={f.id} className="flex items-center gap-1.5 bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full">
+                {f.nombre} {f.apellido}
+                <button type="button" onClick={() => quitarFirmante(f.id)} className="hover:text-purple-950">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          {/* Buscador */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              value={busquedaFirmante}
+              onChange={e => setBusquedaFirmante(e.target.value)}
+              placeholder="Buscar y agregar firmante..."
+              className="input pl-9 text-sm"
+            />
+          </div>
+          {busquedaFirmante && (
+            <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden shadow-sm max-h-48 overflow-y-auto">
+              {firmantesDisponibles.length === 0 ? (
+                <p className="text-sm text-gray-400 px-3 py-2">Sin resultados.</p>
+              ) : (
+                firmantesDisponibles.slice(0, 10).map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => agregarFirmante(f)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50 hover:text-purple-800 transition-colors border-b border-gray-100 last:border-0"
+                  >
+                    {f.nombre} {f.apellido}
+                  </button>
+                ))
+              )}
             </div>
           )}
         </div>

@@ -124,7 +124,7 @@ export default function BibliotecaPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Juez</label>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Firmante</label>
               <select value={juezId} onChange={e => setJuezId(e.target.value)} className="input">
                 <option value="">Todos</option>
                 {jueces.map(j => (
