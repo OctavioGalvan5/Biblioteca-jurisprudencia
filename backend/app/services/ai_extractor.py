@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional, List
 import json
+import anthropic
 from openai import OpenAI
 from ..core.config import settings
 
@@ -9,6 +10,13 @@ class AIExtractor:
 
     def __init__(self):
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self._claude = None
+
+    @property
+    def claude(self):
+        if self._claude is None:
+            self._claude = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        return self._claude
 
     def extract_metadata_from_text(self, text: str) -> Dict[str, Any]:
         """
@@ -89,51 +97,52 @@ JSON:
         """
         judges_list = "\n".join([f"- {j['nombre']} {j['apellido']}" for j in known_judges[:50]])
 
-        prompt = f"""
-Esta es una página de una sentencia judicial argentina que contiene las firmas de los jueces.
+        prompt = f"""Analizá esta imagen de una página de una sentencia judicial argentina. Tu tarea es identificar los nombres completos de los firmantes (jueces, vocales, secretarios) que aparecen en esta página.
 
-INSTRUCCIONES:
-1. Identifica los nombres completos de los jueces que firmaron la sentencia
-2. Busca los siguientes formatos de firma digital (ambos son válidos):
-   - "Digitally signed by NOMBRE APELLIDO" (firma digital estilo PDF)
-   - "Firmado Digitalmente por NOMBRE Apellido" (formato usado en la Corte Suprema argentina)
-   También considerá nombres en mayúsculas asociados a firmas o sellos.
-3. Compara con esta lista de jueces conocidos en el sistema:
+Buscá estos formatos habituales en documentos judiciales argentinos:
+- "Digitally signed by NOMBRE APELLIDO" (firma digital PDF)
+- "Firmado Digitalmente por NOMBRE Apellido"
+- Nombres en mayúsculas junto a cargos: "Dr. APELLIDO, NOMBRE - JUEZ FEDERAL"
+- Texto bajo una firma o sello: "DRES FERRO - TAZZA - JIMENEZ, JUECES DE CÁMARA"
+- Nombres precedidos de "Ante mí:", "Por su orden:", "Fdo.:"
 
+Firmantes ya registrados en el sistema (priorizá coincidencias con estos):
 {judges_list}
 
-4. Devuelve un JSON con formato:
-{{"jueces": ["NOMBRE COMPLETO APELLIDO", ...]}}
+Respondé ÚNICAMENTE con este JSON:
+{{"firmantes": ["Nombre Apellido", ...]}}
 
-Responde ÚNICAMENTE con el JSON, sin texto adicional.
-"""
+Si no encontrás ningún firmante, devolvé {{"firmantes": []}}."""
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{image_base64}"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                temperature=0.1,
-                response_format={"type": "json_object"}
+            response = self.claude.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=512,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": image_base64,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }],
             )
 
-            result = json.loads(response.choices[0].message.content)
-            return result.get("jueces", [])
+            text = response.content[0].text.strip()
+            # Extract JSON even if model adds surrounding text
+            start = text.find('{')
+            end = text.rfind('}') + 1
+            result = json.loads(text[start:end])
+            return result.get("firmantes", result.get("jueces", []))
 
         except Exception as e:
-            print(f"Error al extraer jueces con Vision AI: {e}")
+            print(f"Error al extraer firmantes con Claude Vision: {e}")
             return []
 
 

@@ -163,7 +163,7 @@ class PDFProcessor:
                 firma_page = doc[-1]
                 print(f"Sin pagina de firmas detectada, usando ultima pagina ({n})")
 
-            mat = fitz.Matrix(2, 2)
+            mat = fitz.Matrix(3, 3)  # 3x zoom ≈ 225 DPI — mejor legibilidad para Vision
             pix = firma_page.get_pixmap(matrix=mat)
             img_bytes = pix.tobytes("png")
             doc.close()
