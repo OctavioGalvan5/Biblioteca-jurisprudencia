@@ -3,7 +3,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Search, Filter, FileText, Calendar, Building2, User, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { listSentencias, listJueces, Sentencia, Juez } from '@/lib/api';
+import {
+  listSentencias,
+  listJueces,
+  listInstancias,
+  listOrganos,
+  Sentencia,
+  Juez,
+  Instancia,
+  Organo
+} from '@/lib/api';
 
 const PER_PAGE = 12;
 
@@ -11,19 +20,21 @@ export default function BibliotecaPage() {
   const [sentencias, setSentencias] = useState<Sentencia[]>([]);
   const [total, setTotal] = useState(0);
   const [jueces, setJueces] = useState<Juez[]>([]);
+  const [instancias, setInstancias] = useState<Instancia[]>([]);
+  const [organos, setOrganos] = useState<Organo[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
 
   const [q, setQ] = useState('');
   const [jurisdiccion, setJurisdiccion] = useState('');
-  const [instancia, setInstancia] = useState('');
-  const [organo, setOrgano] = useState('');
+  const [instanciaId, setInstanciaId] = useState('');
+  const [organoId, setOrganoId] = useState('');
   const [juezId, setJuezId] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const hasFilters = !!(jurisdiccion || instancia || organo || juezId || fechaDesde || fechaHasta);
+  const hasFilters = !!(jurisdiccion || instanciaId || organoId || juezId || fechaDesde || fechaHasta);
 
   const fetchSentencias = useCallback(async () => {
     setLoading(true);
@@ -33,8 +44,8 @@ export default function BibliotecaPage() {
         limit: PER_PAGE,
         ...(q && { q }),
         ...(jurisdiccion && { jurisdiccion }),
-        ...(instancia && { instancia }),
-        ...(organo && { organo }),
+        ...(instanciaId && { instancia_id: parseInt(instanciaId) }),
+        ...(organoId && { organo_id: parseInt(organoId) }),
         ...(juezId && { juez_id: parseInt(juezId) }),
         ...(fechaDesde && { fecha_desde: fechaDesde }),
         ...(fechaHasta && { fecha_hasta: fechaHasta }),
@@ -46,15 +57,17 @@ export default function BibliotecaPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, q, jurisdiccion, juezId, fechaDesde, fechaHasta]);
+  }, [page, q, jurisdiccion, instanciaId, organoId, juezId, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     listJueces(true).then(setJueces).catch(() => {});
+    listInstancias().then(setInstancias).catch(() => {});
+    listOrganos().then(setOrganos).catch(() => {});
   }, []);
 
   useEffect(() => {
     setPage(0);
-  }, [q, jurisdiccion, instancia, organo, juezId, fechaDesde, fechaHasta]);
+  }, [q, jurisdiccion, instanciaId, organoId, juezId, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchSentencias();
@@ -62,8 +75,8 @@ export default function BibliotecaPage() {
 
   const clearFilters = () => {
     setJurisdiccion('');
-    setInstancia('');
-    setOrgano('');
+    setInstanciaId('');
+    setOrganoId('');
     setJuezId('');
     setFechaDesde('');
     setFechaHasta('');
@@ -113,7 +126,7 @@ export default function BibliotecaPage() {
             Filtros
             {hasFilters && (
               <span className="bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {[jurisdiccion, instancia, organo, juezId, fechaDesde, fechaHasta].filter(Boolean).length}
+                {[jurisdiccion, instanciaId, organoId, juezId, fechaDesde, fechaHasta].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -131,11 +144,21 @@ export default function BibliotecaPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Instancia</label>
-              <input type="text" value={instancia} onChange={e => setInstancia(e.target.value)} className="input" placeholder="Ej: Cámara, Primera..." />
+              <select value={instanciaId} onChange={e => setInstanciaId(e.target.value)} className="input">
+                <option value="">Todas</option>
+                {instancias.map(i => (
+                  <option key={i.id} value={i.id}>{i.nombre}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Órgano</label>
-              <input type="text" value={organo} onChange={e => setOrgano(e.target.value)} className="input" placeholder="Ej: Cámara Federal..." />
+              <select value={organoId} onChange={e => setOrganoId(e.target.value)} className="input">
+                <option value="">Todos</option>
+                {organos.map(o => (
+                  <option key={o.id} value={o.id}>{o.nombre}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Firmante</label>

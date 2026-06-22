@@ -71,7 +71,9 @@ export interface Sentencia {
   nro_expediente: string | null;
   fecha_sentencia: string | null;
   instancia: string | null;
+  instancia_id: number | null;
   organo: string | null;
+  organo_id: number | null;
   jurisdiccion: 'federal' | 'provincial' | null;
   palabras_clave: string[] | null;
   contenido: string | null;
@@ -164,7 +166,9 @@ export const listSentencias = async (params?: {
   q?: string;
   jurisdiccion?: string;
   instancia?: string;
+  instancia_id?: number;
   organo?: string;
+  organo_id?: number;
   juez_id?: number;
   fecha_desde?: string;
   fecha_hasta?: string;
@@ -240,5 +244,27 @@ export const confirmarJueces = async (
   decisiones: DecisionJuez[],
 ): Promise<{ message: string; sentencia_id: number; jueces_ids: number[] }> => {
   const response = await api.post('/upload/confirmar-jueces', { sentencia_id, decisiones });
+  return response.data;
+};
+
+// ── Instancias y Órganos ──────────────────────────────────────────────────────
+
+export interface Instancia {
+  id: number;
+  nombre: string;
+}
+
+export interface Organo {
+  id: number;
+  nombre: string;
+}
+
+export const listInstancias = async (): Promise<Instancia[]> => {
+  const response = await api.get<Instancia[]>('/instancias/');
+  return response.data;
+};
+
+export const listOrganos = async (): Promise<Organo[]> => {
+  const response = await api.get<Organo[]>('/organos/');
   return response.data;
 };
