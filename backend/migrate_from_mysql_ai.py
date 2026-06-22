@@ -392,13 +392,22 @@ def _process_row(row: dict, i: int, total: int) -> str:
         db.commit()
         db.refresh(nueva)
 
-        # 2. Extraer jueces desde PDF (Claude Vision)
-        print(f"       -> Extrayendo jueces via Vision (Claude)...")
+        # 2. Extraer jueces desde PDF (Primero Criptográfico, luego Claude Vision, luego MySQL)
+        print(f"       -> Extrayendo jueces de manera criptográfica...")
         nombres_jueces = []
         try:
-            nombres_jueces = extract_jueces_via_vision(pdf_bytes, db)
+            nombres_jueces = pdf_processor.extract_cryptographic_signatures(pdf_bytes)
+            if nombres_jueces:
+                print(f"       -> Firmas criptográficas detectadas en PDF: {nombres_jueces}")
         except Exception as e:
-            print(f"       -> Error en extracción de jueces via Vision: {e}")
+            print(f"       -> Error en extracción de firmas criptográficas: {e}")
+
+        if not nombres_jueces:
+            print(f"       -> Sin firmas criptográficas. Extrayendo jueces via Vision (Claude)...")
+            try:
+                nombres_jueces = extract_jueces_via_vision(pdf_bytes, db)
+            except Exception as e:
+                print(f"       -> Error en extracción de jueces via Vision: {e}")
 
         # Fallback a MySQL si la IA no detectó ningún firmante
         if not nombres_jueces:

@@ -178,6 +178,56 @@ class PDFProcessor:
             return None
 
     @staticmethod
+    def extract_cryptographic_signatures(file_data: bytes) -> list[str]:
+        """
+        Extract signer names directly from the PDF's cryptographic digital signatures (PKCS#7).
+        Returns a list of clean name strings (e.g. ['ANIBAL PINEDA', ...]).
+        """
+        signers = []
+        try:
+            reader = PyPDF2.PdfReader(io.BytesIO(file_data))
+            fields = reader.get_fields()
+            if not fields:
+                return []
+
+            from cryptography.hazmat.primitives.serialization import pkcs7
+            import re
+            
+            for name, field in fields.items():
+                if field.get('/FT') == '/Sig':
+                    sig_obj = field.get('/V')
+                    if not sig_obj:
+                        continue
+                    sig_obj = sig_obj.get_object()
+                    contents = sig_obj.get('/Contents')
+                    if not contents:
+                        continue
+                    
+                    try:
+                        # Clean trailing null padding if present
+                        contents_clean = contents.rstrip(b'\x00')
+                        certificates = pkcs7.load_der_pkcs7_certificates(contents_clean)
+                        for cert in certificates:
+                            for attr in cert.subject:
+                                if attr.oid._name == "commonName":
+                                    cn_val = str(attr.value).strip()
+                                    # Limpiar paréntesis, números y caracteres especiales
+                                    cn_val = re.sub(r'\(.*?\)', '', cn_val).strip()
+                                    cn_val = re.sub(r'\d+', '', cn_val).strip()
+                                    cn_val = cn_val.strip(' -_,;')
+                                    cn_val = re.sub(r'\s+', ' ', cn_val).strip()
+                                    
+                                    if cn_val and cn_val not in signers:
+                                        signers.append(cn_val)
+                    except Exception as e:
+                        print(f"       -> Error decodificando firma PKCS#7 '{name}': {e}")
+                        
+        except Exception as e:
+            print(f"       -> Error buscando firmas criptográficas en PDF: {e}")
+            
+        return signers
+
+    @staticmethod
     def get_pdf_metadata(file_data: bytes) -> dict:
         try:
             reader = PyPDF2.PdfReader(io.BytesIO(file_data))

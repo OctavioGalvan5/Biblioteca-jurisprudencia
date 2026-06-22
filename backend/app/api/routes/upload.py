@@ -129,22 +129,32 @@ async def upload_sentencia(
         print(f"Error en extracción de metadata: {e}")
         extracted_metadata = {}
 
-    # 7. Extraer jueces con Vision AI
+    # 7. Extraer jueces (Primero Criptográfico, luego Claude Vision)
     extracted_judges_names = []
     try:
-        last_page_image = pdf_processor.convert_last_page_to_image(file_content)
-        if last_page_image:
-            known_judges = db.query(Juez).filter(Juez.activo == True).all()
-            known_judges_list = [
-                {"nombre": j.nombre, "apellido": j.apellido}
-                for j in known_judges
-            ]
-            extracted_judges_names = ai_extractor.extract_judges_from_image(
-                last_page_image,
-                known_judges_list
-            )
+        print("Intentando extraer firmas de manera criptográfica...")
+        extracted_judges_names = pdf_processor.extract_cryptographic_signatures(file_content)
+        if extracted_judges_names:
+            print(f"Firmas criptográficas detectadas en PDF: {extracted_judges_names}")
     except Exception as e:
-        print(f"Error en extracción de jueces: {e}")
+        print(f"Error en extracción de firmas criptográficas: {e}")
+
+    if not extracted_judges_names:
+        try:
+            print("Sin firmas criptográficas. Intentando extraer jueces via Vision (Claude)...")
+            last_page_image = pdf_processor.convert_last_page_to_image(file_content)
+            if last_page_image:
+                known_judges = db.query(Juez).filter(Juez.activo == True).all()
+                known_judges_list = [
+                    {"nombre": j.nombre, "apellido": j.apellido}
+                    for j in known_judges
+                ]
+                extracted_judges_names = ai_extractor.extract_judges_from_image(
+                    last_page_image,
+                    known_judges_list
+                )
+        except Exception as e:
+            print(f"Error en extracción de jueces via Vision: {e}")
 
     # 8. Guardar sentencia en BD (sin vincular jueces todavía)
     try:
