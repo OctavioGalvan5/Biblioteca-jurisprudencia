@@ -115,7 +115,7 @@ JSON:
         """
         judges_list = "\n".join([f"- {j['nombre']} {j['apellido']}" for j in known_judges[:50]])
 
-        prompt = f"""Analizá esta imagen de una página de una sentencia judicial argentina. Tu tarea es identificar los nombres completos de los firmantes (jueces, vocales, secretarios) que aparecen en esta página.
+        prompt = f"""Analizá esta imagen de una página de una sentencia judicial argentina. Tu tarea es identificar los nombres completos de TODOS los firmantes (jueces, vocales, secretarios) que aparecen en esta página.
 
 Buscá estos formatos habituales en documentos judiciales argentinos:
 - "Digitally signed by NOMBRE APELLIDO" (firma digital PDF)
@@ -124,8 +124,10 @@ Buscá estos formatos habituales en documentos judiciales argentinos:
 - Texto bajo una firma o sello: "DRES FERRO - TAZZA - JIMENEZ, JUECES DE CÁMARA"
 - Nombres precedidos de "Ante mí:", "Por su orden:", "Fdo.:"
 
-Firmantes ya registrados en el sistema (priorizá coincidencias con estos):
+Firmantes conocidos en el sistema (usalo para corregir ortografía si ves similitudes):
 {judges_list}
+
+IMPORTANTE: Extraé TODOS los firmantes que veas en la imagen, pertenezcan o no a la lista de conocidos. Si encontrás un firmante nuevo que no está en la lista de conocidos, INCLUYELO también en la respuesta.
 
 Respondé ÚNICAMENTE con este JSON:
 {{"firmantes": ["Nombre Apellido", ...]}}
