@@ -199,9 +199,9 @@ def vincular_jueces(sentencia_id: int, nombres: list[str], db):
         nombre_raw = nombre_raw.strip()
         if not nombre_raw:
             continue
-        partes = nombre_raw.split()
-        # Skip garbage: must have ≥2 words, each word ≥2 chars
-        if len(partes) < 2 or any(len(p) < 2 for p in partes):
+        # Skip garbage: must have ≥2 words, and at least two words must have ≥2 chars (allows middle initials or short particles)
+        partes_validas = [p for p in partes if len(p) >= 2]
+        if len(partes) < 2 or len(partes_validas) < 2:
             print(f"       -> IGNORADO (nombre inválido): '{nombre_raw}'")
             continue
         mejor_juez, sim = find_best_match(nombre_raw, jueces_db)
