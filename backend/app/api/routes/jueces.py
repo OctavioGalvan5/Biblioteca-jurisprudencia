@@ -22,6 +22,8 @@ def list_jueces(
         query = query.filter(Juez.activo == activo)
 
     jueces = query.order_by(Juez.apellido, Juez.nombre).all()
+    for j in jueces:
+        j.cant_sentencias = len(j.sentencias)
     return jueces
 
 
@@ -32,6 +34,7 @@ def create_juez(juez_data: JuezCreate, db: Session = Depends(get_db), _: str = D
     db.add(nuevo_juez)
     db.commit()
     db.refresh(nuevo_juez)
+    nuevo_juez.cant_sentencias = 0
     return nuevo_juez
 
 
@@ -56,6 +59,7 @@ def update_juez(
 
     db.commit()
     db.refresh(juez)
+    juez.cant_sentencias = len(juez.sentencias)
     return juez
 
 

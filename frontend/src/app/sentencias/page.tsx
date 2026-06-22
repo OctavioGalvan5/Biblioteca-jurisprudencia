@@ -76,6 +76,19 @@ export default function BibliotecaPage() {
 
     listInstancias().then(setInstancias).catch(() => {});
     listOrganos().then(setOrganos).catch(() => {});
+
+    // Cargar juez_id desde los parámetros de la URL si existe
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const jId = params.get('juez_id');
+      if (jId) {
+        const idInt = parseInt(jId);
+        if (!isNaN(idInt)) {
+          setSelectedJuezIds([idInt]);
+          setShowFilters(true);
+        }
+      }
+    }
   }, []);
 
   useEffect(() => {

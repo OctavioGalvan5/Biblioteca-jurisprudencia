@@ -61,6 +61,7 @@ export interface Juez {
   activo: boolean;
   fecha_alta: string;
   fecha_baja: string | null;
+  cant_sentencias?: number;
 }
 
 export interface Sentencia {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Users, Pencil, Check, X, ToggleLeft, ToggleRight } from 'lucide-react';
 import { isAuthenticated, api } from '@/lib/api';
 
@@ -10,6 +11,7 @@ interface Firmante {
   nombre: string;
   apellido: string;
   activo: boolean;
+  cant_sentencias?: number;
 }
 
 export default function FirmantesPage() {
@@ -143,13 +145,29 @@ export default function FirmantesPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="text-sm font-medium text-gray-800">
-                    {f.nombre} {f.apellido}
-                  </span>
-                  {!f.activo && (
-                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">inactivo</span>
-                  )}
+                <div className="flex items-center justify-between flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Link
+                      href={`/sentencias?juez_id=${f.id}`}
+                      className="text-sm font-semibold text-gray-800 hover:text-purple-700 hover:underline truncate"
+                      title="Ver sentencias de este firmante"
+                    >
+                      {f.nombre} {f.apellido}
+                    </Link>
+                    {!f.activo && (
+                      <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium shrink-0">inactivo</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 shrink-0 mr-4">
+                    <Link
+                      href={`/sentencias?juez_id=${f.id}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-800 rounded-lg font-medium transition-all duration-200 border border-purple-100/50"
+                      title="Ver sentencias de este firmante"
+                    >
+                      <span className="font-bold">{f.cant_sentencias ?? 0}</span>
+                      <span>{f.cant_sentencias === 1 ? 'sentencia' : 'sentencias'}</span>
+                    </Link>
+                  </div>
                 </div>
               )}
 

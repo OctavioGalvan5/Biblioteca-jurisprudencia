@@ -17,6 +17,7 @@ class JuezResponse(JuezBase):
     id: int
     fecha_alta: datetime
     fecha_baja: Optional[datetime] = None
+    cant_sentencias: Optional[int] = 0
 
     class Config:
         from_attributes = True
