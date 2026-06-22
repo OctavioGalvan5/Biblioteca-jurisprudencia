@@ -190,20 +190,15 @@ export default function BibliotecaPage() {
 
             {/* Selector Múltiple y Buscador de Firmantes */}
             <div className="relative">
-              <label className={`text-xs font-medium mb-1 block ${sinJueces ? 'text-gray-400' : 'text-gray-600'}`}>Firmantes</label>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Firmantes</label>
               <button
                 type="button"
-                disabled={sinJueces}
                 onClick={() => setShowJuezDropdown(d => !d)}
-                className={`input flex items-center justify-between text-left w-full transition-all duration-200 ${
-                  sinJueces 
-                    ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' 
-                    : 'bg-white border-gray-300 text-gray-700'
-                }`}
+                className="input flex items-center justify-between text-left bg-white w-full border-gray-300 text-gray-700"
               >
                 <span className="truncate">
                   {sinJueces
-                    ? 'Deshabilitado (Sin Jueces)'
+                    ? 'Sin firmantes asignados'
                     : selectedJuezIds.length === 0
                     ? 'Todos'
                     : selectedJuezIds.length === 1
@@ -215,7 +210,7 @@ export default function BibliotecaPage() {
                 <ChevronDown className="h-4 w-4 text-gray-400 shrink-0 ml-1" />
               </button>
 
-              {showJuezDropdown && !sinJueces && (
+              {showJuezDropdown && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowJuezDropdown(false)} />
                   <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-3 space-y-2 max-h-72 flex flex-col">
@@ -240,6 +235,24 @@ export default function BibliotecaPage() {
                     </div>
 
                     <div className="overflow-y-auto flex-1 space-y-1 min-h-[100px] pr-1">
+                      {/* Opción especial: Sin firmantes asignados */}
+                      {(!juezSearch || 'sin firmantes'.includes(juezSearch.toLowerCase()) || 'sin jueces'.includes(juezSearch.toLowerCase())) && (
+                        <label className="flex items-center gap-2 hover:bg-gray-50 p-1.5 rounded-lg cursor-pointer text-xs font-semibold text-purple-700 border-b border-gray-100 pb-2 mb-1 shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={sinJueces}
+                            onChange={e => {
+                              setSinJueces(e.target.checked);
+                              if (e.target.checked) {
+                                setSelectedJuezIds([]);
+                              }
+                            }}
+                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5 border-gray-300"
+                          />
+                          <span className="truncate">Sin firmantes asignados</span>
+                        </label>
+                      )}
+
                       {jueces
                         .filter(j =>
                           `${j.nombre} ${j.apellido}`
@@ -257,6 +270,7 @@ export default function BibliotecaPage() {
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => {
+                                  setSinJueces(false); // Desmarcar "sin firmantes" si se selecciona un juez
                                   if (isChecked) {
                                     setSelectedJuezIds(ids => ids.filter(id => id !== j.id));
                                   } else {
@@ -275,22 +289,25 @@ export default function BibliotecaPage() {
                         `${j.nombre} ${j.apellido}`
                           .toLowerCase()
                           .includes(juezSearch.toLowerCase())
-                      ).length === 0 && (
+                      ).length === 0 && (!juezSearch || !('sin firmantes'.includes(juezSearch.toLowerCase()) || 'sin jueces'.includes(juezSearch.toLowerCase()))) && (
                         <p className="text-center text-xs text-gray-400 py-4">No hay resultados</p>
                       )}
                     </div>
 
-                    {selectedJuezIds.length > 0 && (
+                    {(selectedJuezIds.length > 0 || sinJueces) && (
                       <div className="pt-2 border-t border-gray-100 flex justify-between items-center shrink-0">
                         <button
                           type="button"
-                          onClick={() => setSelectedJuezIds([])}
+                          onClick={() => {
+                            setSelectedJuezIds([]);
+                            setSinJueces(false);
+                          }}
                           className="text-[10px] text-red-500 hover:text-red-700 font-medium"
                         >
                           Limpiar selección
                         </button>
                         <span className="text-[10px] text-gray-400">
-                          {selectedJuezIds.length} seleccionados
+                          {sinJueces ? '1 seleccionado' : `${selectedJuezIds.length} seleccionados`}
                         </span>
                       </div>
                     )}
@@ -306,23 +323,6 @@ export default function BibliotecaPage() {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha hasta</label>
               <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="input" />
-            </div>
-
-            <div className="sm:col-span-3 flex items-center bg-purple-50/50 border border-purple-100/50 rounded-xl p-3 my-1">
-              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-purple-950">
-                <input
-                  type="checkbox"
-                  checked={sinJueces}
-                  onChange={e => {
-                    setSinJueces(e.target.checked);
-                    if (e.target.checked) {
-                      setSelectedJuezIds([]);
-                    }
-                  }}
-                  className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4 border-gray-300 transition-colors"
-                />
-                Mostrar únicamente sentencias sin firmantes / jueces cargados
-              </label>
             </div>
 
             {hasFilters && (
