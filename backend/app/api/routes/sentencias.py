@@ -61,7 +61,7 @@ def list_sentencias(
     instancia_id: Optional[int] = None,
     organo: Optional[str] = None,
     organo_id: Optional[int] = None,
-    juez_id: Optional[int] = None,
+    juez_id: Optional[str] = None,
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -104,7 +104,14 @@ def list_sentencias(
         query = query.filter(Sentencia.organo_id == organo_id)
 
     if juez_id:
-        query = query.join(Sentencia.jueces).filter(SentenciaJuez.juez_id == juez_id)
+        try:
+            juez_ids = [int(x.strip()) for x in str(juez_id).split(",") if x.strip()]
+            if len(juez_ids) == 1:
+                query = query.join(Sentencia.jueces).filter(SentenciaJuez.juez_id == juez_ids[0])
+            elif len(juez_ids) > 1:
+                query = query.join(Sentencia.jueces).filter(SentenciaJuez.juez_id.in_(juez_ids)).distinct()
+        except ValueError:
+            pass
 
     if fecha_desde:
         query = query.filter(Sentencia.fecha_sentencia >= fecha_desde)

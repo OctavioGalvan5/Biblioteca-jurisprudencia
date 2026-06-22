@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Search, Filter, FileText, Calendar, Building2, User, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Search, Filter, FileText, Calendar, Building2, User, ChevronLeft, ChevronRight, X, ChevronDown } from 'lucide-react';
 import {
   listSentencias,
   listJueces,
@@ -29,12 +29,14 @@ export default function BibliotecaPage() {
   const [jurisdiccion, setJurisdiccion] = useState('');
   const [instanciaId, setInstanciaId] = useState('');
   const [organoId, setOrganoId] = useState('');
-  const [juezId, setJuezId] = useState('');
+  const [selectedJuezIds, setSelectedJuezIds] = useState<number[]>([]);
+  const [juezSearch, setJuezSearch] = useState('');
+  const [showJuezDropdown, setShowJuezDropdown] = useState(false);
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const hasFilters = !!(jurisdiccion || instanciaId || organoId || juezId || fechaDesde || fechaHasta);
+  const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || fechaDesde || fechaHasta);
 
   const fetchSentencias = useCallback(async () => {
     setLoading(true);
@@ -46,7 +48,7 @@ export default function BibliotecaPage() {
         ...(jurisdiccion && { jurisdiccion }),
         ...(instanciaId && { instancia_id: parseInt(instanciaId) }),
         ...(organoId && { organo_id: parseInt(organoId) }),
-        ...(juezId && { juez_id: parseInt(juezId) }),
+        ...(selectedJuezIds.length > 0 && { juez_id: selectedJuezIds.join(',') }),
         ...(fechaDesde && { fecha_desde: fechaDesde }),
         ...(fechaHasta && { fecha_hasta: fechaHasta }),
       });
@@ -57,17 +59,26 @@ export default function BibliotecaPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, q, jurisdiccion, instanciaId, organoId, juezId, fechaDesde, fechaHasta]);
+  }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, fechaDesde, fechaHasta]);
 
   useEffect(() => {
-    listJueces(true).then(setJueces).catch(() => {});
+    listJueces(true)
+      .then(list => {
+        // Asegurar ordenamiento alfabético en el frontend (por apellido, nombre)
+        const sorted = [...list].sort((a, b) =>
+          `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`)
+        );
+        setJueces(sorted);
+      })
+      .catch(() => {});
+
     listInstancias().then(setInstancias).catch(() => {});
     listOrganos().then(setOrganos).catch(() => {});
   }, []);
 
   useEffect(() => {
     setPage(0);
-  }, [q, jurisdiccion, instanciaId, organoId, juezId, fechaDesde, fechaHasta]);
+  }, [q, jurisdiccion, instanciaId, organoId, selectedJuezIds, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchSentencias();
@@ -77,7 +88,7 @@ export default function BibliotecaPage() {
     setJurisdiccion('');
     setInstanciaId('');
     setOrganoId('');
-    setJuezId('');
+    setSelectedJuezIds([]);
     setFechaDesde('');
     setFechaHasta('');
   };
@@ -126,7 +137,7 @@ export default function BibliotecaPage() {
             Filtros
             {hasFilters && (
               <span className="bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {[jurisdiccion, instanciaId, organoId, juezId, fechaDesde, fechaHasta].filter(Boolean).length}
+                {[jurisdiccion, instanciaId, organoId, selectedJuezIds.length > 0, fechaDesde, fechaHasta].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -160,15 +171,111 @@ export default function BibliotecaPage() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Firmante</label>
-              <select value={juezId} onChange={e => setJuezId(e.target.value)} className="input">
-                <option value="">Todos</option>
-                {jueces.map(j => (
-                  <option key={j.id} value={j.id}>{j.nombre} {j.apellido}</option>
-                ))}
-              </select>
+
+            {/* Selector Múltiple y Buscador de Firmantes */}
+            <div className="relative">
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Firmantes</label>
+              <button
+                type="button"
+                onClick={() => setShowJuezDropdown(d => !d)}
+                className="input flex items-center justify-between text-left bg-white w-full"
+              >
+                <span className="truncate">
+                  {selectedJuezIds.length === 0
+                    ? 'Todos'
+                    : selectedJuezIds.length === 1
+                    ? jueces.find(j => j.id === selectedJuezIds[0])
+                      ? `${jueces.find(j => j.id === selectedJuezIds[0])?.apellido}, ${jueces.find(j => j.id === selectedJuezIds[0])?.nombre}`
+                      : '1 seleccionado'
+                    : `${selectedJuezIds.length} seleccionados`}
+                </span>
+                <ChevronDown className="h-4 w-4 text-gray-400 shrink-0 ml-1" />
+              </button>
+
+              {showJuezDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowJuezDropdown(false)} />
+                  <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-3 space-y-2 max-h-72 flex flex-col">
+                    <div className="relative shrink-0">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar firmante..."
+                        value={juezSearch}
+                        onChange={e => setJuezSearch(e.target.value)}
+                        className="input pl-8 py-1.5 text-xs"
+                      />
+                      {juezSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setJuezSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="overflow-y-auto flex-1 space-y-1 min-h-[100px] pr-1">
+                      {jueces
+                        .filter(j =>
+                          `${j.nombre} ${j.apellido}`
+                            .toLowerCase()
+                            .includes(juezSearch.toLowerCase())
+                        )
+                        .map(j => {
+                          const isChecked = selectedJuezIds.includes(j.id);
+                          return (
+                            <label
+                              key={j.id}
+                              className="flex items-center gap-2 hover:bg-gray-50 p-1.5 rounded-lg cursor-pointer text-xs font-normal"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    setSelectedJuezIds(ids => ids.filter(id => id !== j.id));
+                                  } else {
+                                    setSelectedJuezIds(ids => [...ids, j.id]);
+                                  }
+                                }}
+                                className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5 border-gray-300"
+                              />
+                              <span className="text-gray-700 truncate">
+                                {j.apellido}, {j.nombre}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      {jueces.filter(j =>
+                        `${j.nombre} ${j.apellido}`
+                          .toLowerCase()
+                          .includes(juezSearch.toLowerCase())
+                      ).length === 0 && (
+                        <p className="text-center text-xs text-gray-400 py-4">No hay resultados</p>
+                      )}
+                    </div>
+
+                    {selectedJuezIds.length > 0 && (
+                      <div className="pt-2 border-t border-gray-100 flex justify-between items-center shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedJuezIds([])}
+                          className="text-[10px] text-red-500 hover:text-red-700 font-medium"
+                        >
+                          Limpiar selección
+                        </button>
+                        <span className="text-[10px] text-gray-400">
+                          {selectedJuezIds.length} seleccionados
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
+
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha desde</label>
               <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="input" />
