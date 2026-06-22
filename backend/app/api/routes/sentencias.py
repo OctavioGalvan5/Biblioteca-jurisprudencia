@@ -62,6 +62,7 @@ def list_sentencias(
     organo: Optional[str] = None,
     organo_id: Optional[int] = None,
     juez_id: Optional[str] = None,
+    sin_jueces: Optional[bool] = Query(None),
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -102,6 +103,12 @@ def list_sentencias(
 
     if organo_id:
         query = query.filter(Sentencia.organo_id == organo_id)
+
+    if sin_jueces is not None:
+        if sin_jueces:
+            query = query.filter(~Sentencia.jueces.any())
+        else:
+            query = query.filter(Sentencia.jueces.any())
 
     if juez_id:
         try:

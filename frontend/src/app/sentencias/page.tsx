@@ -32,11 +32,12 @@ export default function BibliotecaPage() {
   const [selectedJuezIds, setSelectedJuezIds] = useState<number[]>([]);
   const [juezSearch, setJuezSearch] = useState('');
   const [showJuezDropdown, setShowJuezDropdown] = useState(false);
+  const [sinJueces, setSinJueces] = useState(false);
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || fechaDesde || fechaHasta);
+  const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || sinJueces || fechaDesde || fechaHasta);
 
   const fetchSentencias = useCallback(async () => {
     setLoading(true);
@@ -49,6 +50,7 @@ export default function BibliotecaPage() {
         ...(instanciaId && { instancia_id: parseInt(instanciaId) }),
         ...(organoId && { organo_id: parseInt(organoId) }),
         ...(selectedJuezIds.length > 0 && { juez_id: selectedJuezIds.join(',') }),
+        ...(sinJueces && { sin_jueces: true }),
         ...(fechaDesde && { fecha_desde: fechaDesde }),
         ...(fechaHasta && { fecha_hasta: fechaHasta }),
       });
@@ -59,7 +61,7 @@ export default function BibliotecaPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, fechaDesde, fechaHasta]);
+  }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     listJueces(true)
@@ -78,7 +80,7 @@ export default function BibliotecaPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [q, jurisdiccion, instanciaId, organoId, selectedJuezIds, fechaDesde, fechaHasta]);
+  }, [q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchSentencias();
@@ -89,6 +91,7 @@ export default function BibliotecaPage() {
     setInstanciaId('');
     setOrganoId('');
     setSelectedJuezIds([]);
+    setSinJueces(false);
     setFechaDesde('');
     setFechaHasta('');
   };
@@ -137,7 +140,7 @@ export default function BibliotecaPage() {
             Filtros
             {hasFilters && (
               <span className="bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {[jurisdiccion, instanciaId, organoId, selectedJuezIds.length > 0, fechaDesde, fechaHasta].filter(Boolean).length}
+                {[jurisdiccion, instanciaId, organoId, selectedJuezIds.length > 0, sinJueces, fechaDesde, fechaHasta].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -174,14 +177,21 @@ export default function BibliotecaPage() {
 
             {/* Selector Múltiple y Buscador de Firmantes */}
             <div className="relative">
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Firmantes</label>
+              <label className={`text-xs font-medium mb-1 block ${sinJueces ? 'text-gray-400' : 'text-gray-600'}`}>Firmantes</label>
               <button
                 type="button"
+                disabled={sinJueces}
                 onClick={() => setShowJuezDropdown(d => !d)}
-                className="input flex items-center justify-between text-left bg-white w-full"
+                className={`input flex items-center justify-between text-left w-full transition-all duration-200 ${
+                  sinJueces 
+                    ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed opacity-60' 
+                    : 'bg-white border-gray-300 text-gray-700'
+                }`}
               >
                 <span className="truncate">
-                  {selectedJuezIds.length === 0
+                  {sinJueces
+                    ? 'Deshabilitado (Sin Jueces)'
+                    : selectedJuezIds.length === 0
                     ? 'Todos'
                     : selectedJuezIds.length === 1
                     ? jueces.find(j => j.id === selectedJuezIds[0])
@@ -192,7 +202,7 @@ export default function BibliotecaPage() {
                 <ChevronDown className="h-4 w-4 text-gray-400 shrink-0 ml-1" />
               </button>
 
-              {showJuezDropdown && (
+              {showJuezDropdown && !sinJueces && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowJuezDropdown(false)} />
                   <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 p-3 space-y-2 max-h-72 flex flex-col">
@@ -284,6 +294,24 @@ export default function BibliotecaPage() {
               <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha hasta</label>
               <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="input" />
             </div>
+
+            <div className="sm:col-span-3 flex items-center bg-purple-50/50 border border-purple-100/50 rounded-xl p-3 my-1">
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-purple-950">
+                <input
+                  type="checkbox"
+                  checked={sinJueces}
+                  onChange={e => {
+                    setSinJueces(e.target.checked);
+                    if (e.target.checked) {
+                      setSelectedJuezIds([]);
+                    }
+                  }}
+                  className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4 border-gray-300 transition-colors"
+                />
+                Mostrar únicamente sentencias sin firmantes / jueces cargados
+              </label>
+            </div>
+
             {hasFilters && (
               <div className="sm:col-span-3 flex justify-end">
                 <button onClick={clearFilters} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
