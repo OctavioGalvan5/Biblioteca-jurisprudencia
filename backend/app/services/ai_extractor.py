@@ -38,7 +38,7 @@ Analiza el siguiente texto de una sentencia y extrae la siguiente información e
 3. **fecha_sentencia**: Fecha de la sentencia en formato YYYY-MM-DD
 4. **instancia**: Instancia judicial. Guíate estrictamente por el órgano que emite la sentencia:
    - Si el órgano emisor es un **Juzgado**, la instancia debe ser **"Primera Instancia"**.
-   - Si el órgano emisor es una **Cámara**, la instancia debe ser **"Cámara de Apelaciones"**.
+   - Si el órgano emisor es una **Cámara**, la instancia debe ser **"Segunda Instancia"**.
    - Si el órgano emisor es la **Corte Suprema** (CSJN), la instancia debe ser **"Corte Suprema"**.
 5. **organo**: Órgano judicial emisor (ej: "CAMARA FEDERAL DE ROSARIO - SALA A", "Juzgado Federal Nº 2", "CORTE SUPREMA DE JUSTICIA DE LA NACIÓN")
 6. **jurisdiccion**: "federal" o "provincial"
@@ -81,7 +81,7 @@ JSON:
             if result.get("organo") and result.get("instancia"):
                 organo_low = str(result["organo"]).lower()
                 if "cámara" in organo_low or "camara" in organo_low:
-                    result["instancia"] = "Cámara de Apelaciones"
+                    result["instancia"] = "Segunda Instancia"
                 elif "corte suprema" in organo_low or "csjn" in organo_low or "corte suprema de justicia" in organo_low:
                     result["instancia"] = "Corte Suprema"
                 elif "juzgado" in organo_low:

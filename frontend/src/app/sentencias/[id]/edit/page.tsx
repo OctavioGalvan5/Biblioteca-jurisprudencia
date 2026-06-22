@@ -146,7 +146,7 @@ export default function EditSentenciaPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Instancia</label>
-              <input type="text" {...register('instancia')} className="input" placeholder="Ej: Cámara de Apelaciones" />
+              <input type="text" {...register('instancia')} className="input" placeholder="Ej: Segunda Instancia" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Jurisdicción</label>
