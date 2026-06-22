@@ -214,6 +214,7 @@ def vincular_jueces(sentencia_id: int, nombres: list[str], db):
 
         if sim >= SIMILITUD_LINK and mejor_juez:
             juez = mejor_juez
+            print(f"       -> VINCULADO (existente): {juez.nombre} {juez.apellido} (similitud: {sim:.2f})")
         else:
             # Create new judge
             nombre, apellido = split_nombre_apellido(nombre_raw)
