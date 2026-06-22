@@ -65,6 +65,11 @@ JSON:
             )
 
             result = json.loads(response.choices[0].message.content)
+            
+            # Print success log of extracted metadata
+            print(f"       -> GPT extrajo carátula: '{result.get('caratula')}'")
+            print(f"       -> GPT extrajo expediente: '{result.get('nro_expediente')}'")
+            print(f"       -> GPT extrajo órgano/instancia: '{result.get('organo')}' / '{result.get('instancia')}'")
 
             # Validar y normalizar jurisdicción
             if result.get("jurisdiccion"):
@@ -128,6 +133,7 @@ Respondé ÚNICAMENTE con este JSON:
 Si no encontrás ningún firmante, devolvé {{"firmantes": []}}."""
 
         try:
+            print(f"       -> Enviando a Claude Vision (modelo: claude-sonnet-4-6, imagen size: {len(image_base64)} chars)...")
             response = self.claude.messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=512,
@@ -148,14 +154,22 @@ Si no encontrás ningún firmante, devolvé {{"firmantes": []}}."""
             )
 
             text = response.content[0].text.strip()
+            print(f"       -> Respuesta raw de Claude:\n{text}")
             # Extract JSON even if model adds surrounding text
             start = text.find('{')
             end = text.rfind('}') + 1
+            if start == -1 or end == 0:
+                print("       -> Error: No se encontró estructura JSON en la respuesta de Claude.")
+                return []
             result = json.loads(text[start:end])
-            return result.get("firmantes", result.get("jueces", []))
+            firmantes = result.get("firmantes", result.get("jueces", []))
+            print(f"       -> Claude Vision detectó firmantes: {firmantes}")
+            return firmantes
 
         except Exception as e:
-            print(f"Error al extraer firmantes con Claude Vision: {e}")
+            print(f"❌ Error al extraer firmantes con Claude Vision: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
 
