@@ -16,12 +16,14 @@ export default function BibliotecaPage() {
 
   const [q, setQ] = useState('');
   const [jurisdiccion, setJurisdiccion] = useState('');
+  const [instancia, setInstancia] = useState('');
+  const [organo, setOrgano] = useState('');
   const [juezId, setJuezId] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const hasFilters = !!(jurisdiccion || juezId || fechaDesde || fechaHasta);
+  const hasFilters = !!(jurisdiccion || instancia || organo || juezId || fechaDesde || fechaHasta);
 
   const fetchSentencias = useCallback(async () => {
     setLoading(true);
@@ -31,6 +33,8 @@ export default function BibliotecaPage() {
         limit: PER_PAGE,
         ...(q && { q }),
         ...(jurisdiccion && { jurisdiccion }),
+        ...(instancia && { instancia }),
+        ...(organo && { organo }),
         ...(juezId && { juez_id: parseInt(juezId) }),
         ...(fechaDesde && { fecha_desde: fechaDesde }),
         ...(fechaHasta && { fecha_hasta: fechaHasta }),
@@ -50,7 +54,7 @@ export default function BibliotecaPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [q, jurisdiccion, juezId, fechaDesde, fechaHasta]);
+  }, [q, jurisdiccion, instancia, organo, juezId, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchSentencias();
@@ -58,6 +62,8 @@ export default function BibliotecaPage() {
 
   const clearFilters = () => {
     setJurisdiccion('');
+    setInstancia('');
+    setOrgano('');
     setJuezId('');
     setFechaDesde('');
     setFechaHasta('');
@@ -107,14 +113,14 @@ export default function BibliotecaPage() {
             Filtros
             {hasFilters && (
               <span className="bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {[jurisdiccion, juezId, fechaDesde, fechaHasta].filter(Boolean).length}
+                {[jurisdiccion, instancia, organo, juezId, fechaDesde, fechaHasta].filter(Boolean).length}
               </span>
             )}
           </button>
         </div>
 
         {showFilters && (
-          <div className="border-t border-gray-100 pt-3 grid sm:grid-cols-4 gap-3">
+          <div className="border-t border-gray-100 pt-3 grid sm:grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Jurisdicción</label>
               <select value={jurisdiccion} onChange={e => setJurisdiccion(e.target.value)} className="input">
@@ -122,6 +128,14 @@ export default function BibliotecaPage() {
                 <option value="federal">Federal</option>
                 <option value="provincial">Provincial</option>
               </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Instancia</label>
+              <input type="text" value={instancia} onChange={e => setInstancia(e.target.value)} className="input" placeholder="Ej: Cámara, Primera..." />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Órgano</label>
+              <input type="text" value={organo} onChange={e => setOrgano(e.target.value)} className="input" placeholder="Ej: Cámara Federal..." />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Firmante</label>
@@ -141,7 +155,7 @@ export default function BibliotecaPage() {
               <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="input" />
             </div>
             {hasFilters && (
-              <div className="sm:col-span-4 flex justify-end">
+              <div className="sm:col-span-3 flex justify-end">
                 <button onClick={clearFilters} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
                   <X className="h-3 w-3" /> Limpiar filtros
                 </button>

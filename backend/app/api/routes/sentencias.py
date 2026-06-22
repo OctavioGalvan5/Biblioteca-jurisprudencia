@@ -52,6 +52,7 @@ def list_sentencias(
     limit: int = Query(20, ge=1, le=100),
     q: Optional[str] = None,
     jurisdiccion: Optional[str] = None,
+    instancia: Optional[str] = None,
     organo: Optional[str] = None,
     juez_id: Optional[int] = None,
     fecha_desde: Optional[str] = None,
@@ -78,6 +79,9 @@ def list_sentencias(
 
     if jurisdiccion:
         query = query.filter(Sentencia.jurisdiccion == jurisdiccion)
+
+    if instancia:
+        query = query.filter(Sentencia.instancia.ilike(f"%{instancia}%"))
 
     if organo:
         query = query.filter(Sentencia.organo.ilike(f"%{organo}%"))

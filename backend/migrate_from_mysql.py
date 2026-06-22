@@ -29,8 +29,15 @@ from datetime import datetime
 from difflib import SequenceMatcher
 
 sys.path.insert(0, os.path.dirname(__file__))
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
+
+# Root .env has the Supabase DATABASE_URL (with pgvector)
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+# Override API keys from backend/.env (which has the real values)
+_backend = dotenv_values(os.path.join(os.path.dirname(__file__), '.env'))
+for _key in ('ANTHROPIC_API_KEY', 'OPENAI_API_KEY'):
+    if _backend.get(_key):
+        os.environ[_key] = _backend[_key]
 
 import logging
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
@@ -39,7 +46,7 @@ logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 import pymysql
 import requests
 
-from app.core.database import engine, SessionLocal
+from app.core.database import engine, SessionLocal, Base
 engine.echo = False  # suppress SQL logs regardless of DEBUG setting
 from app.core.minio_client import minio_client
 from app.models.database_models import Sentencia, SentenciaChunk, Juez, SentenciaJuez
@@ -192,6 +199,11 @@ def vincular_jueces(sentencia_id: int, nombres: list[str], db):
         nombre_raw = nombre_raw.strip()
         if not nombre_raw:
             continue
+        partes = nombre_raw.split()
+        # Skip garbage: must have ≥2 words, each word ≥2 chars
+        if len(partes) < 2 or any(len(p) < 2 for p in partes):
+            print(f"       -> IGNORADO (nombre inválido): '{nombre_raw}'")
+            continue
         mejor_juez, sim = find_best_match(nombre_raw, jueces_db)
 
         if sim >= SIMILITUD_LINK and mejor_juez:
@@ -266,10 +278,26 @@ def connect_mysql():
 
 
 def setup_pgvector():
+    # Import models so Base knows about all tables before create_all
+    from app.models import database_models  # noqa: F401
+
     with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.execute(text("ALTER TABLE sentencias_chunks ADD COLUMN IF NOT EXISTS embedding vector(1536)"))
-        conn.commit()
+        try:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            print("  (pgvector extension already exists or no perms — skipping)")
+
+    Base.metadata.create_all(bind=engine)
+    print("  Tablas verificadas/creadas.")
+
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE sentencias_chunks ADD COLUMN IF NOT EXISTS embedding vector(1536)"))
+            conn.commit()
+        except Exception:
+            conn.rollback()
 
 
 # ── Migration ─────────────────────────────────────────────────────────────────

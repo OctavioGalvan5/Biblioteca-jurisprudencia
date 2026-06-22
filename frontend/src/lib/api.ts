@@ -163,6 +163,7 @@ export const listSentencias = async (params?: {
   limit?: number;
   q?: string;
   jurisdiccion?: string;
+  instancia?: string;
   organo?: string;
   juez_id?: number;
   fecha_desde?: string;
