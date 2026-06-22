@@ -5,7 +5,7 @@ python-multipart==0.0.12
 
 # Base de datos
 sqlalchemy==2.0.35
-psycopg2-binary==2.9.9
+psycopg2-binary>=2.9.9
 alembic==1.13.3
 
 # Vector DB (pgvector)
@@ -16,7 +16,7 @@ minio==7.2.9
 
 # Procesamiento PDF
 PyPDF2==3.0.1
-PyMuPDF==1.24.4
+PyMuPDF>=1.24.4
 pdfplumber==0.11.4
 pdf2image==1.17.0
 Pillow==11.0.0
@@ -25,9 +25,6 @@ pytesseract==0.3.13
 # IA y Embeddings
 openai==1.54.3
 anthropic==0.39.0
-langchain==0.3.7
-langchain-openai==0.2.8
-sentence-transformers==3.2.1
 
 # Utilidades
 python-dotenv==1.0.1

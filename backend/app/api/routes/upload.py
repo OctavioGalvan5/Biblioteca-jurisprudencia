@@ -13,7 +13,10 @@ from ...services.pdf_processor import pdf_processor
 from ...services.ai_extractor import ai_extractor
 from ...services.embedding_service import embedding_service
 from ...services.chunking_service import chunking_service
-from ...models.database_models import Sentencia, Juez, SentenciaJuez, SentenciaChunk
+from ...models.database_models import (
+    Sentencia, Juez, SentenciaJuez, SentenciaChunk,
+    get_or_create_instancia, get_or_create_organo
+)
 from ...schemas.sentencia_schemas import (
     SentenciaUploadResponse, JuezPendiente, ConfirmarJuecesRequest
 )
@@ -156,14 +159,17 @@ async def upload_sentencia(
             except:
                 pass
 
+        instancia_obj = get_or_create_instancia(db, extracted_metadata.get("instancia"))
+        organo_obj = get_or_create_organo(db, extracted_metadata.get("organo"))
+
         nueva_sentencia = Sentencia(
             hash=file_hash,
             url_minio=minio_url,
             caratula=extracted_metadata.get("caratula"),
             nro_expediente=extracted_metadata.get("nro_expediente"),
             fecha_sentencia=fecha_sentencia,
-            instancia=extracted_metadata.get("instancia"),
-            organo=extracted_metadata.get("organo"),
+            instancia=instancia_obj,
+            organo=organo_obj,
             jurisdiccion=extracted_metadata.get("jurisdiccion"),
             palabras_clave=extracted_metadata.get("palabras_clave", []),
             contenido=full_text,
@@ -388,14 +394,17 @@ async def upload_bulk(
                 except Exception:
                     pass
 
+            instancia_obj = get_or_create_instancia(db, metadata.get("instancia"))
+            organo_obj = get_or_create_organo(db, metadata.get("organo"))
+
             nueva = Sentencia(
                 hash=file_hash,
                 url_minio=minio_url,
                 caratula=metadata.get("caratula"),
                 nro_expediente=metadata.get("nro_expediente"),
                 fecha_sentencia=fecha_sentencia,
-                instancia=metadata.get("instancia"),
-                organo=metadata.get("organo"),
+                instancia=instancia_obj,
+                organo=organo_obj,
                 jurisdiccion=metadata.get("jurisdiccion"),
                 palabras_clave=metadata.get("palabras_clave", []),
                 contenido=full_text,

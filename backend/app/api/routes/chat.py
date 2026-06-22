@@ -41,8 +41,8 @@ def _sentencia_to_dict(s: Sentencia, similitud: float) -> dict:
         "caratula": s.caratula,
         "nro_expediente": s.nro_expediente,
         "fecha_sentencia": str(s.fecha_sentencia) if s.fecha_sentencia else None,
-        "instancia": s.instancia,
-        "organo": s.organo,
+        "instancia": s.instancia.nombre if s.instancia else None,
+        "organo": s.organo.nombre if s.organo else None,
         "jurisdiccion": s.jurisdiccion,
         "palabras_clave": s.palabras_clave,
         "resumen": s.resumen,
@@ -123,7 +123,11 @@ def _buscar_similares(
 
     sentencias = (
         db.query(Sentencia)
-        .options(joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez))
+        .options(
+            joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez),
+            joinedload(Sentencia.instancia),
+            joinedload(Sentencia.organo)
+        )
         .filter(Sentencia.id.in_(ids))
         .all()
     )
@@ -165,7 +169,12 @@ def preguntar(req: PreguntarRequest, db: Session = Depends(get_db), _: str = Dep
         }
 
     ids_fuentes = [f["id"] for f in fuentes]
-    sentencias_completas = db.query(Sentencia).filter(Sentencia.id.in_(ids_fuentes)).all()
+    sentencias_completas = (
+        db.query(Sentencia)
+        .options(joinedload(Sentencia.instancia), joinedload(Sentencia.organo))
+        .filter(Sentencia.id.in_(ids_fuentes))
+        .all()
+    )
     contenidos = {s.id: s.contenido for s in sentencias_completas}
 
     contexto_parts = []

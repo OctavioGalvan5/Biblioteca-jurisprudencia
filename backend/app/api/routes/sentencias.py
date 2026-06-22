@@ -5,7 +5,10 @@ from typing import List, Optional
 
 from ...core.database import get_db
 from ...core.auth import get_current_user
-from ...models.database_models import Sentencia, Juez, SentenciaJuez
+from ...models.database_models import (
+    Sentencia, Juez, SentenciaJuez, Instancia, Organo,
+    get_or_create_instancia, get_or_create_organo
+)
 from ...schemas.sentencia_schemas import (
     SentenciaResponse,
     SentenciaUpdate,
@@ -16,7 +19,7 @@ router = APIRouter(prefix="/sentencias", tags=["Sentencias"])
 
 
 def _map_sentencia(sentencia) -> dict:
-    """Helper para mapear sentencia a dict con jueces"""
+    """Helper para mapear sentencia a dict con jueces e IDs relacionales"""
     return {
         "id": sentencia.id,
         "hash": sentencia.hash,
@@ -24,8 +27,10 @@ def _map_sentencia(sentencia) -> dict:
         "caratula": sentencia.caratula,
         "nro_expediente": sentencia.nro_expediente,
         "fecha_sentencia": sentencia.fecha_sentencia,
-        "instancia": sentencia.instancia,
-        "organo": sentencia.organo,
+        "instancia": sentencia.instancia.nombre if sentencia.instancia else None,
+        "instancia_id": sentencia.instancia_id,
+        "organo": sentencia.organo.nombre if sentencia.organo else None,
+        "organo_id": sentencia.organo_id,
         "jurisdiccion": sentencia.jurisdiccion,
         "palabras_clave": sentencia.palabras_clave,
         "contenido": sentencia.contenido,
@@ -53,7 +58,9 @@ def list_sentencias(
     q: Optional[str] = None,
     jurisdiccion: Optional[str] = None,
     instancia: Optional[str] = None,
+    instancia_id: Optional[int] = None,
     organo: Optional[str] = None,
+    organo_id: Optional[int] = None,
     juez_id: Optional[int] = None,
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
@@ -61,18 +68,22 @@ def list_sentencias(
 ):
     """Listar sentencias con filtros y búsqueda de texto"""
     query = db.query(Sentencia).options(
-        joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez)
+        joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez),
+        joinedload(Sentencia.instancia),
+        joinedload(Sentencia.organo)
     )
 
     # Búsqueda de texto libre (carátula, expediente, resumen, órgano, palabras clave)
     if q:
         from sqlalchemy import cast, Text, func as sqlfunc
+        query = query.outerjoin(Sentencia.organo).outerjoin(Sentencia.instancia)
         query = query.filter(
             or_(
                 Sentencia.caratula.ilike(f"%{q}%"),
                 Sentencia.nro_expediente.ilike(f"%{q}%"),
                 Sentencia.resumen.ilike(f"%{q}%"),
-                Sentencia.organo.ilike(f"%{q}%"),
+                Organo.nombre.ilike(f"%{q}%"),
+                Instancia.nombre.ilike(f"%{q}%"),
                 sqlfunc.array_to_string(Sentencia.palabras_clave, ' ').ilike(f"%{q}%"),
             )
         )
@@ -81,10 +92,16 @@ def list_sentencias(
         query = query.filter(Sentencia.jurisdiccion == jurisdiccion)
 
     if instancia:
-        query = query.filter(Sentencia.instancia.ilike(f"%{instancia}%"))
+        query = query.join(Sentencia.instancia).filter(Instancia.nombre.ilike(f"%{instancia}%"))
+
+    if instancia_id:
+        query = query.filter(Sentencia.instancia_id == instancia_id)
 
     if organo:
-        query = query.filter(Sentencia.organo.ilike(f"%{organo}%"))
+        query = query.join(Sentencia.organo).filter(Organo.nombre.ilike(f"%{organo}%"))
+
+    if organo_id:
+        query = query.filter(Sentencia.organo_id == organo_id)
 
     if juez_id:
         query = query.join(Sentencia.jueces).filter(SentenciaJuez.juez_id == juez_id)
@@ -106,7 +123,11 @@ def get_sentencia(sentencia_id: int, db: Session = Depends(get_db)):
     """Obtener una sentencia por ID"""
     sentencia = (
         db.query(Sentencia)
-        .options(joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez))
+        .options(
+            joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez),
+            joinedload(Sentencia.instancia),
+            joinedload(Sentencia.organo)
+        )
         .filter(Sentencia.id == sentencia_id)
         .first()
     )
@@ -130,9 +151,22 @@ def update_sentencia(
     if not sentencia:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sentencia no encontrada")
 
-    update_data = sentencia_data.model_dump(exclude_unset=True, exclude={"jueces_ids"})
+    update_data = sentencia_data.model_dump(exclude_unset=True, exclude={"jueces_ids", "instancia", "organo"})
     for field, value in update_data.items():
         setattr(sentencia, field, value)
+
+    # Interceptar y resolver relaciones de instancia y órgano
+    if "instancia" in sentencia_data.model_fields_set:
+        sentencia.instancia = get_or_create_instancia(db, sentencia_data.instancia)
+
+    if "organo" in sentencia_data.model_fields_set:
+        sentencia.organo = get_or_create_organo(db, sentencia_data.organo)
+
+    if "instancia_id" in sentencia_data.model_fields_set:
+        sentencia.instancia_id = sentencia_data.instancia_id
+
+    if "organo_id" in sentencia_data.model_fields_set:
+        sentencia.organo_id = sentencia_data.organo_id
 
     if sentencia_data.jueces_ids is not None:
         db.query(SentenciaJuez).filter(SentenciaJuez.sentencia_id == sentencia_id).delete()
@@ -146,7 +180,11 @@ def update_sentencia(
 
     sentencia = (
         db.query(Sentencia)
-        .options(joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez))
+        .options(
+            joinedload(Sentencia.jueces).joinedload(SentenciaJuez.juez),
+            joinedload(Sentencia.instancia),
+            joinedload(Sentencia.organo)
+        )
         .filter(Sentencia.id == sentencia_id)
         .first()
     )

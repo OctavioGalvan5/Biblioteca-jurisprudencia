@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from .core.config import settings
 from .core.database import engine, Base
-from .api.routes import upload, sentencias, jueces, auth, chat
+from .api.routes import upload, sentencias, jueces, auth, chat, instancias, organos
 
 print("⏳ Conectando a PostgreSQL y creando tablas...")
 try:
@@ -58,6 +58,8 @@ app.include_router(upload.router, prefix="/api")
 app.include_router(sentencias.router, prefix="/api")
 app.include_router(jueces.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
+app.include_router(instancias.router, prefix="/api")
+app.include_router(organos.router, prefix="/api")
 
 
 @app.get("/")

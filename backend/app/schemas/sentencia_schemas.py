@@ -27,7 +27,9 @@ class SentenciaBase(BaseModel):
     nro_expediente: Optional[str] = None
     fecha_sentencia: Optional[date] = None
     instancia: Optional[str] = None
+    instancia_id: Optional[int] = None
     organo: Optional[str] = None
+    organo_id: Optional[int] = None
     jurisdiccion: Optional[str] = Field(None, pattern="^(federal|provincial)$")
     palabras_clave: Optional[List[str]] = None
     contenido: Optional[str] = None
@@ -92,3 +94,19 @@ class SentenciaListResponse(BaseModel):
     """Respuesta de lista de sentencias"""
     total: int
     sentencias: List[SentenciaResponse]
+
+
+class InstanciaResponse(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+        from_attributes = True
+
+
+class OrganoResponse(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+        from_attributes = True

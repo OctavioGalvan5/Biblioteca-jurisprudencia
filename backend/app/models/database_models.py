@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey, ARRAY, CheckConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Session
 from sqlalchemy.sql import func
 from pgvector.sqlalchemy import Vector
 from ..core.database import Base
@@ -18,6 +18,20 @@ class Juez(Base):
     sentencias = relationship("SentenciaJuez", back_populates="juez")
 
 
+class Instancia(Base):
+    __tablename__ = "instancias"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(255), unique=True, nullable=False, index=True)
+
+
+class Organo(Base):
+    __tablename__ = "organos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(255), unique=True, nullable=False, index=True)
+
+
 class Sentencia(Base):
     __tablename__ = "sentencias"
 
@@ -26,8 +40,8 @@ class Sentencia(Base):
     caratula = Column(Text, nullable=True)
     nro_expediente = Column(String(100), nullable=True, index=True)
     fecha_sentencia = Column(Date, nullable=True, index=True)
-    instancia = Column(String(100), nullable=True)
-    organo = Column(String(200), nullable=True, index=True)
+    instancia_id = Column(Integer, ForeignKey("instancias.id"), nullable=True)
+    organo_id = Column(Integer, ForeignKey("organos.id"), nullable=True)
     jurisdiccion = Column(
         String(20),
         CheckConstraint("jurisdiccion IN ('federal', 'provincial')"),
@@ -42,6 +56,8 @@ class Sentencia(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     jueces = relationship("SentenciaJuez", back_populates="sentencia", cascade="all, delete-orphan")
+    instancia = relationship("Instancia")
+    organo = relationship("Organo")
 
 
 class SentenciaJuez(Base):
@@ -72,3 +88,29 @@ class SentenciaChunk(Base):
     tipo_seccion = Column(String(50), nullable=True)
     contenido = Column(Text, nullable=False)
     embedding = Column(Vector(1536), nullable=True)
+
+
+# ── Helpers get_or_create ─────────────────────────────────────────────────────
+
+def get_or_create_instancia(db: Session, nombre: str | None) -> Instancia | None:
+    if not nombre or not str(nombre).strip():
+        return None
+    nombre_clean = str(nombre).strip()
+    instancia = db.query(Instancia).filter(func.lower(Instancia.nombre) == func.lower(nombre_clean)).first()
+    if not instancia:
+        instancia = Instancia(nombre=nombre_clean)
+        db.add(instancia)
+        db.flush()
+    return instancia
+
+
+def get_or_create_organo(db: Session, nombre: str | None) -> Organo | None:
+    if not nombre or not str(nombre).strip():
+        return None
+    nombre_clean = str(nombre).strip()
+    organo = db.query(Organo).filter(func.lower(Organo.nombre) == func.lower(nombre_clean)).first()
+    if not organo:
+        organo = Organo(nombre=nombre_clean)
+        db.add(organo)
+        db.flush()
+    return organo
