@@ -137,7 +137,7 @@ class PDFProcessor:
 
         return "\n\n".join(parts)
 
-    FIRMA_KEYWORDS = ["digitally signed", "firmado digitalmente", "firma"]
+    FIRMA_KEYWORDS = ["digitally signed", "firmado digitalmente", "firmado por", "fdo:"]
 
     @staticmethod
     def convert_last_page_to_image(file_data: bytes) -> Optional[str]:
@@ -151,7 +151,8 @@ class PDFProcessor:
             n = len(doc)
             firma_page = None
 
-            for i in range(n - 1, max(n - 6, -1), -1):
+            # Solo buscamos en la última (n-1) y penúltima (n-2) página
+            for i in range(n - 1, max(n - 3, -1), -1):
                 page = doc[i]
                 text = page.get_text().lower()
                 if any(kw in text for kw in PDFProcessor.FIRMA_KEYWORDS):
