@@ -24,8 +24,12 @@ export default function EditSentenciaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNewInstancia, setIsNewInstancia] = useState(false);
+  const [isNewOrgano, setIsNewOrgano] = useState(false);
 
-  const { register, handleSubmit, setValue } = useForm();
+  const { register, handleSubmit, setValue, watch } = useForm();
+  const watchInstancia = watch('instancia');
+  const watchOrgano = watch('organo');
 
   useEffect(() => {
     const loadData = async () => {
@@ -50,6 +54,15 @@ export default function EditSentenciaPage() {
         setValue('jurisdiccion', sentenciaData.jurisdiccion || '');
         setValue('palabras_clave', sentenciaData.palabras_clave?.join(', ') || '');
         setValue('resumen', sentenciaData.resumen || '');
+
+        const hasInstanciaInDb = instanciasData.some(
+          i => i.nombre.toLowerCase() === (sentenciaData.instancia || '').toLowerCase()
+        );
+        const hasOrganoInDb = organosData.some(
+          o => o.nombre.toLowerCase() === (sentenciaData.organo || '').toLowerCase()
+        );
+        setIsNewInstancia(sentenciaData.instancia ? !hasInstanciaInDb : false);
+        setIsNewOrgano(sentenciaData.organo ? !hasOrganoInDb : false);
       } catch {
         setError('Error al cargar la sentencia');
       } finally {
@@ -155,12 +168,50 @@ export default function EditSentenciaPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Instancia</label>
-              <input type="text" {...register('instancia')} className="input" placeholder="Ej: Segunda Instancia" list="instancias-list" />
-              <datalist id="instancias-list">
-                {instancias.map(i => (
-                  <option key={i.id} value={i.nombre} />
-                ))}
-              </datalist>
+              {isNewInstancia ? (
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      {...register('instancia')}
+                      className="input"
+                      placeholder="Escribí la nueva instancia..."
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNewInstancia(false);
+                      setValue('instancia', '');
+                    }}
+                    className="px-4 py-2 border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 transition-all duration-200 font-medium text-sm h-[38px] flex items-center justify-center shrink-0"
+                  >
+                    Elegir de la lista
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={watchInstancia || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__NEW__') {
+                      setIsNewInstancia(true);
+                      setValue('instancia', '');
+                    } else {
+                      setValue('instancia', val);
+                    }
+                  }}
+                  className="input"
+                >
+                  <option value="">-- Seleccionar instancia --</option>
+                  {instancias.map(i => (
+                    <option key={i.id} value={i.nombre}>
+                      {i.nombre}
+                    </option>
+                  ))}
+                  <option value="__NEW__" className="text-purple-700 font-medium">+ Crear nueva instancia...</option>
+                </select>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Jurisdicción</label>
@@ -172,12 +223,50 @@ export default function EditSentenciaPage() {
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Órgano</label>
-              <input type="text" {...register('organo')} className="input" placeholder="Ej: CAMARA FEDERAL DE ROSARIO - SALA A" list="organos-list" />
-              <datalist id="organos-list">
-                {organos.map(o => (
-                  <option key={o.id} value={o.nombre} />
-                ))}
-              </datalist>
+              {isNewOrgano ? (
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      {...register('organo')}
+                      className="input"
+                      placeholder="Escribí el nuevo órgano..."
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNewOrgano(false);
+                      setValue('organo', '');
+                    }}
+                    className="px-4 py-2 border border-purple-200 text-purple-700 rounded-lg hover:bg-purple-50 transition-all duration-200 font-medium text-sm h-[38px] flex items-center justify-center shrink-0"
+                  >
+                    Elegir de la lista
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={watchOrgano || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__NEW__') {
+                      setIsNewOrgano(true);
+                      setValue('organo', '');
+                    } else {
+                      setValue('organo', val);
+                    }
+                  }}
+                  className="input"
+                >
+                  <option value="">-- Seleccionar órgano --</option>
+                  {organos.map(o => (
+                    <option key={o.id} value={o.nombre}>
+                      {o.nombre}
+                    </option>
+                  ))}
+                  <option value="__NEW__" className="text-purple-700 font-medium">+ Crear nuevo órgano...</option>
+                </select>
+              )}
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Palabras Clave (separadas por comas)</label>

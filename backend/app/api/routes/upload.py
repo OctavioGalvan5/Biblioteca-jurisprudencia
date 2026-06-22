@@ -110,7 +110,7 @@ async def upload_sentencia(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al subir archivo a MinIO: {str(e)}"
+            detail=f"Error al subir archivo al almacenamiento: {str(e)}"
         )
 
     # 5. Extraer texto del PDF

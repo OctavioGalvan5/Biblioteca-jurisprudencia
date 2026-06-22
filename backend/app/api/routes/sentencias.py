@@ -218,7 +218,7 @@ def delete_sentencia(sentencia_id: int, db: Session = Depends(get_db), _: str = 
         object_name = sentencia.url_minio.split(f"/{minio_client.bucket_name}/")[-1]
         minio_client.delete_file(object_name)
     except Exception as e:
-        print(f"Error al eliminar archivo de MinIO: {e}")
+        print(f"Error al eliminar archivo del almacenamiento: {e}")
 
     db.delete(sentencia)
     db.commit()

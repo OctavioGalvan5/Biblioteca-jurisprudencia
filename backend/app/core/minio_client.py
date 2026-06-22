@@ -7,7 +7,7 @@ from typing import BinaryIO
 
 
 class MinIOClient:
-    """Cliente para interactuar con MinIO"""
+    """Cliente para interactuar con el almacenamiento de archivos"""
 
     def __init__(self):
         self.client = Minio(
@@ -24,9 +24,9 @@ class MinIOClient:
         try:
             if not self.client.bucket_exists(self.bucket_name):
                 self.client.make_bucket(self.bucket_name)
-                print(f"✅ Bucket '{self.bucket_name}' creado exitosamente en MinIO")
+                print(f"✅ Bucket '{self.bucket_name}' creado exitosamente en el almacenamiento")
             else:
-                print(f"✓ Bucket '{self.bucket_name}' ya existe en MinIO")
+                print(f"✓ Bucket '{self.bucket_name}' ya existe en el almacenamiento")
 
             # Aplicar política de lectura pública (para poder ver los PDFs directamente)
             public_policy = {
@@ -44,10 +44,10 @@ class MinIOClient:
             print(f"✓ Política de lectura pública aplicada al bucket")
 
         except S3Error as e:
-            print(f"⚠️  Error con MinIO: {e}")
-            print(f"   Verifica que MinIO esté corriendo en {settings.MINIO_ENDPOINT}")
+            print(f"⚠️  Error con el almacenamiento: {e}")
+            print(f"   Verifica que el almacenamiento esté corriendo en {settings.MINIO_ENDPOINT}")
         except Exception as e:
-            print(f"❌ Error de conexión con MinIO: {e}")
+            print(f"❌ Error de conexión con el almacenamiento: {e}")
             print(f"   Endpoint: {settings.MINIO_ENDPOINT}")
 
     def upload_file(
@@ -56,7 +56,7 @@ class MinIOClient:
         object_name: str,
         content_type: str = "application/pdf"
     ) -> str:
-        """Subir archivo a MinIO y retornar la URL pública"""
+        """Subir archivo al almacenamiento y retornar la URL pública"""
         try:
             file_data.seek(0, 2)
             file_size = file_data.tell()
@@ -74,10 +74,10 @@ class MinIOClient:
             return url
 
         except S3Error as e:
-            raise Exception(f"Error al subir archivo a MinIO: {e}")
+            raise Exception(f"Error al subir archivo al almacenamiento: {e}")
 
     def get_file(self, object_name: str) -> bytes:
-        """Obtener archivo de MinIO"""
+        """Obtener archivo del almacenamiento"""
         try:
             response = self.client.get_object(self.bucket_name, object_name)
             data = response.read()
@@ -85,15 +85,15 @@ class MinIOClient:
             response.release_conn()
             return data
         except S3Error as e:
-            raise Exception(f"Error al obtener archivo de MinIO: {e}")
+            raise Exception(f"Error al obtener archivo del almacenamiento: {e}")
 
     def delete_file(self, object_name: str) -> bool:
-        """Eliminar archivo de MinIO"""
+        """Eliminar archivo del almacenamiento"""
         try:
             self.client.remove_object(self.bucket_name, object_name)
             return True
         except S3Error as e:
-            raise Exception(f"Error al eliminar archivo de MinIO: {e}")
+            raise Exception(f"Error al eliminar archivo del almacenamiento: {e}")
 
     def get_presigned_url(self, object_name: str, expiry_seconds: int = 3600) -> str:
         """Generar URL pre-firmada para acceso temporal"""
