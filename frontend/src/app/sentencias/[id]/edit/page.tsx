@@ -5,7 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { Save, ExternalLink, Loader2, ArrowLeft, X, Search } from 'lucide-react';
-import { getSentencia, updateSentencia, listJueces, Sentencia, Juez } from '@/lib/api';
+import { 
+  getSentencia, updateSentencia, listJueces, listInstancias, listOrganos,
+  Sentencia, Juez, Instancia, Organo 
+} from '@/lib/api';
 
 export default function EditSentenciaPage() {
   const params = useParams();
@@ -16,6 +19,8 @@ export default function EditSentenciaPage() {
   const [todosFirmantes, setTodosFirmantes] = useState<Juez[]>([]);
   const [firmantesSeleccionados, setFirmantesSeleccionados] = useState<Juez[]>([]);
   const [busquedaFirmante, setBusquedaFirmante] = useState('');
+  const [instancias, setInstancias] = useState<Instancia[]>([]);
+  const [organos, setOrganos] = useState<Organo[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +30,17 @@ export default function EditSentenciaPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [sentenciaData, juecesData] = await Promise.all([
+        const [sentenciaData, juecesData, instanciasData, organosData] = await Promise.all([
           getSentencia(id),
           listJueces(true),
+          listInstancias(),
+          listOrganos(),
         ]);
         setSentencia(sentenciaData);
         setTodosFirmantes(juecesData);
         setFirmantesSeleccionados(sentenciaData.jueces);
+        setInstancias(instanciasData);
+        setOrganos(organosData);
 
         setValue('caratula', sentenciaData.caratula || '');
         setValue('nro_expediente', sentenciaData.nro_expediente || '');
@@ -146,7 +155,12 @@ export default function EditSentenciaPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Instancia</label>
-              <input type="text" {...register('instancia')} className="input" placeholder="Ej: Segunda Instancia" />
+              <input type="text" {...register('instancia')} className="input" placeholder="Ej: Segunda Instancia" list="instancias-list" />
+              <datalist id="instancias-list">
+                {instancias.map(i => (
+                  <option key={i.id} value={i.nombre} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Jurisdicción</label>
@@ -158,7 +172,12 @@ export default function EditSentenciaPage() {
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Órgano</label>
-              <input type="text" {...register('organo')} className="input" placeholder="Ej: CAMARA FEDERAL DE ROSARIO - SALA A" />
+              <input type="text" {...register('organo')} className="input" placeholder="Ej: CAMARA FEDERAL DE ROSARIO - SALA A" list="organos-list" />
+              <datalist id="organos-list">
+                {organos.map(o => (
+                  <option key={o.id} value={o.nombre} />
+                ))}
+              </datalist>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Palabras Clave (separadas por comas)</label>
@@ -226,7 +245,7 @@ export default function EditSentenciaPage() {
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-purple-800">Archivo original</p>
-            <p className="text-xs text-purple-500 mt-0.5">PDF almacenado en MinIO</p>
+            <p className="text-xs text-purple-500 mt-0.5">Archivo PDF original cargado</p>
           </div>
           <a
             href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/sentencias/${id}/pdf`}
