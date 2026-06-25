@@ -74,7 +74,7 @@ def list_sentencias(
         joinedload(Sentencia.organo)
     )
 
-    # Búsqueda de texto libre (carátula, expediente, resumen, órgano, palabras clave)
+    # Búsqueda de texto libre (carátula, expediente, resumen, órgano, palabras clave, contenido completo)
     if q:
         from sqlalchemy import cast, Text, func as sqlfunc
         query = query.outerjoin(Sentencia.organo).outerjoin(Sentencia.instancia)
@@ -83,6 +83,7 @@ def list_sentencias(
                 Sentencia.caratula.ilike(f"%{q}%"),
                 Sentencia.nro_expediente.ilike(f"%{q}%"),
                 Sentencia.resumen.ilike(f"%{q}%"),
+                Sentencia.contenido.ilike(f"%{q}%"),
                 Organo.nombre.ilike(f"%{q}%"),
                 Instancia.nombre.ilike(f"%{q}%"),
                 sqlfunc.array_to_string(Sentencia.palabras_clave, ' ').ilike(f"%{q}%"),

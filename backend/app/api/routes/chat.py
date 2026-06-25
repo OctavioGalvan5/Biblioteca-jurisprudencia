@@ -15,6 +15,7 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 _openai = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 MIN_SIMILARITY = 0.28
+TEXT_MATCH_SCORE = 0.42  # Score assigned to keyword-only matches (above MIN_SIMILARITY)
 
 # Considerandos rank highest — legal reasoning is most useful for search
 TIPO_BOOST = {"considerando": 0.03, "resuelve": 0.01, "vistos": 0.0, "general": 0.0}
@@ -70,45 +71,62 @@ def _buscar_similares(
 
     vector_str = "[" + ",".join(str(v) for v in vector) + "]"
 
-    filters = ["sc.embedding IS NOT NULL"]
-    params: dict = {"vector": vector_str, "candidate_limit": limit * 6}
+    # Shared filters for both search legs
+    filters = []
+    params_base: dict = {}
 
     if jurisdiccion:
         filters.append("s.jurisdiccion = :jurisdiccion")
-        params["jurisdiccion"] = jurisdiccion
+        params_base["jurisdiccion"] = jurisdiccion
     if fecha_desde:
         filters.append("s.fecha_sentencia >= :fecha_desde")
-        params["fecha_desde"] = fecha_desde
+        params_base["fecha_desde"] = fecha_desde
     if fecha_hasta:
         filters.append("s.fecha_sentencia <= :fecha_hasta")
-        params["fecha_hasta"] = fecha_hasta
+        params_base["fecha_hasta"] = fecha_hasta
 
-    where = " AND ".join(filters)
+    extra_where = (" AND " + " AND ".join(filters)) if filters else ""
 
-    # Retrieve more candidates from chunks, deduplicate and re-rank in Python
-    sql = text(f"""
+    # --- Leg 1: Semantic (vector) search ---
+    sem_sql = text(f"""
         SELECT sc.sentencia_id,
                sc.tipo_seccion,
                1 - (sc.embedding <=> CAST(:vector AS vector)) AS similitud
         FROM sentencias_chunks sc
         JOIN sentencias s ON s.id = sc.sentencia_id
-        WHERE {where}
+        WHERE sc.embedding IS NOT NULL
+        {extra_where}
         ORDER BY sc.embedding <=> CAST(:vector AS vector)
         LIMIT :candidate_limit
     """)
-
-    rows = db.execute(sql, params).fetchall()
-    if not rows:
-        return []
+    sem_rows = db.execute(
+        sem_sql,
+        {**params_base, "vector": vector_str, "candidate_limit": limit * 6},
+    ).fetchall()
 
     # Deduplicate: per sentencia keep best boosted score
     best: dict[int, float] = {}
-    for sentencia_id, tipo_seccion, sim in rows:
+    for sentencia_id, tipo_seccion, sim in sem_rows:
         boosted = sim + TIPO_BOOST.get(tipo_seccion or "general", 0.0)
         if sentencia_id not in best or boosted > best[sentencia_id]:
             best[sentencia_id] = boosted
 
-    # Apply similarity threshold and sort
+    # --- Leg 2: Keyword search on chunk text ---
+    # Catches exact phrase matches that fall below the vector similarity threshold
+    kw_sql = text(f"""
+        SELECT DISTINCT sc.sentencia_id
+        FROM sentencias_chunks sc
+        JOIN sentencias s ON s.id = sc.sentencia_id
+        WHERE sc.contenido ILIKE :pattern
+        {extra_where}
+    """)
+    kw_rows = db.execute(kw_sql, {**params_base, "pattern": f"%{query}%"}).fetchall()
+
+    for row in kw_rows:
+        if row.sentencia_id not in best:
+            best[row.sentencia_id] = TEXT_MATCH_SCORE
+
+    # Apply threshold and sort
     filtered = [
         (sid, score) for sid, score in best.items() if score >= min_similarity
     ]
