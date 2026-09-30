@@ -64,6 +64,8 @@ def list_sentencias(
     juez_id: Optional[str] = None,
     sin_jueces: Optional[bool] = Query(None),
     palabra_clave: Optional[str] = None,
+    subida_desde: Optional[str] = None,
+    subida_hasta: Optional[str] = None,
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -130,6 +132,18 @@ def list_sentencias(
                 "EXISTS (SELECT 1 FROM unnest(sentencias.palabras_clave) k WHERE lower(k) = lower(:pc))"
             ).bindparams(pc=palabra_clave.strip())
         )
+
+    # Fecha de subida a la biblioteca (created_at); 'hasta' inclusive todo el día
+    if subida_desde:
+        query = query.filter(Sentencia.created_at >= subida_desde)
+
+    if subida_hasta:
+        from datetime import date, timedelta
+        try:
+            hasta = date.fromisoformat(subida_hasta) + timedelta(days=1)
+            query = query.filter(Sentencia.created_at < hasta)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="subida_hasta debe tener formato YYYY-MM-DD")
 
     if fecha_desde:
         query = query.filter(Sentencia.fecha_sentencia >= fecha_desde)

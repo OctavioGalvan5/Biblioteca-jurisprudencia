@@ -173,6 +173,8 @@ export const listSentencias = async (params?: {
   juez_id?: string | number;
   sin_jueces?: boolean;
   palabra_clave?: string;
+  subida_desde?: string;
+  subida_hasta?: string;
   fecha_desde?: string;
   fecha_hasta?: string;
 }): Promise<{ total: number; sentencias: Sentencia[] }> => {

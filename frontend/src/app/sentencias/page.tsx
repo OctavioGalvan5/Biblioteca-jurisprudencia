@@ -37,10 +37,12 @@ export default function BibliotecaPage() {
   const [showJuezDropdown, setShowJuezDropdown] = useState(false);
   const [sinJueces, setSinJueces] = useState(false);
   const [fechaDesde, setFechaDesde] = useState('');
+  const [subidaDesde, setSubidaDesde] = useState('');
+  const [subidaHasta, setSubidaHasta] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || sinJueces || palabraClave || fechaDesde || fechaHasta);
+  const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || sinJueces || palabraClave || subidaDesde || subidaHasta || fechaDesde || fechaHasta);
 
   const fetchSentencias = useCallback(async () => {
     setLoading(true);
@@ -55,6 +57,8 @@ export default function BibliotecaPage() {
         ...(selectedJuezIds.length > 0 && { juez_id: selectedJuezIds.join(',') }),
         ...(sinJueces && { sin_jueces: true }),
         ...(palabraClave && { palabra_clave: palabraClave }),
+        ...(subidaDesde && { subida_desde: subidaDesde }),
+        ...(subidaHasta && { subida_hasta: subidaHasta }),
         ...(fechaDesde && { fecha_desde: fechaDesde }),
         ...(fechaHasta && { fecha_hasta: fechaHasta }),
       });
@@ -65,7 +69,7 @@ export default function BibliotecaPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, palabraClave, fechaDesde, fechaHasta]);
+  }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, palabraClave, subidaDesde, subidaHasta, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     listJueces(true)
@@ -90,6 +94,13 @@ export default function BibliotecaPage() {
         setPalabraClave(pc);
         setShowFilters(true);
       }
+      const sd = params.get('subida_desde');
+      const sh = params.get('subida_hasta');
+      if (sd || sh) {
+        if (sd) setSubidaDesde(sd);
+        if (sh) setSubidaHasta(sh);
+        setShowFilters(true);
+      }
       const jId = params.get('juez_id');
       if (jId) {
         const idInt = parseInt(jId);
@@ -103,7 +114,7 @@ export default function BibliotecaPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, palabraClave, fechaDesde, fechaHasta]);
+  }, [q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, palabraClave, subidaDesde, subidaHasta, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchSentencias();
@@ -116,6 +127,8 @@ export default function BibliotecaPage() {
     setSelectedJuezIds([]);
     setSinJueces(false);
     setPalabraClave('');
+    setSubidaDesde('');
+    setSubidaHasta('');
     setFechaDesde('');
     setFechaHasta('');
   };
@@ -164,7 +177,7 @@ export default function BibliotecaPage() {
             Filtros
             {hasFilters && (
               <span className="bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {[jurisdiccion, instanciaId, organoId, selectedJuezIds.length > 0, sinJueces, palabraClave, fechaDesde, fechaHasta].filter(Boolean).length}
+                {[jurisdiccion, instanciaId, organoId, selectedJuezIds.length > 0, sinJueces, palabraClave, subidaDesde, subidaHasta, fechaDesde, fechaHasta].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -341,12 +354,21 @@ export default function BibliotecaPage() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha desde</label>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha de sentencia desde</label>
               <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="input" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha hasta</label>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha de sentencia hasta</label>
               <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="input" />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Subida desde</label>
+              <input type="date" value={subidaDesde} onChange={e => setSubidaDesde(e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Subida hasta</label>
+              <input type="date" value={subidaHasta} onChange={e => setSubidaHasta(e.target.value)} className="input" />
             </div>
 
             {hasFilters && (
