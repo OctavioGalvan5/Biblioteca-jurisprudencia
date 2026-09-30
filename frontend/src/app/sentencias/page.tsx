@@ -8,6 +8,7 @@ import {
   listJueces,
   listInstancias,
   listOrganos,
+  listPalabrasClave,
   Sentencia,
   Juez,
   Instancia,
@@ -22,6 +23,8 @@ export default function BibliotecaPage() {
   const [jueces, setJueces] = useState<Juez[]>([]);
   const [instancias, setInstancias] = useState<Instancia[]>([]);
   const [organos, setOrganos] = useState<Organo[]>([]);
+  const [palabrasClave, setPalabrasClave] = useState<{ nombre: string; cantidad: number }[]>([]);
+  const [palabraClave, setPalabraClave] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
 
@@ -37,7 +40,7 @@ export default function BibliotecaPage() {
   const [fechaHasta, setFechaHasta] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || sinJueces || fechaDesde || fechaHasta);
+  const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || sinJueces || palabraClave || fechaDesde || fechaHasta);
 
   const fetchSentencias = useCallback(async () => {
     setLoading(true);
@@ -51,6 +54,7 @@ export default function BibliotecaPage() {
         ...(organoId && { organo_id: parseInt(organoId) }),
         ...(selectedJuezIds.length > 0 && { juez_id: selectedJuezIds.join(',') }),
         ...(sinJueces && { sin_jueces: true }),
+        ...(palabraClave && { palabra_clave: palabraClave }),
         ...(fechaDesde && { fecha_desde: fechaDesde }),
         ...(fechaHasta && { fecha_hasta: fechaHasta }),
       });
@@ -61,7 +65,7 @@ export default function BibliotecaPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, fechaDesde, fechaHasta]);
+  }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, palabraClave, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     listJueces(true)
@@ -76,10 +80,16 @@ export default function BibliotecaPage() {
 
     listInstancias().then(setInstancias).catch(() => {});
     listOrganos().then(setOrganos).catch(() => {});
+    listPalabrasClave().then(setPalabrasClave).catch(() => {});
 
     // Cargar juez_id desde los parámetros de la URL si existe
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
+      const pc = params.get('palabra_clave');
+      if (pc) {
+        setPalabraClave(pc);
+        setShowFilters(true);
+      }
       const jId = params.get('juez_id');
       if (jId) {
         const idInt = parseInt(jId);
@@ -93,7 +103,7 @@ export default function BibliotecaPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, fechaDesde, fechaHasta]);
+  }, [q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, palabraClave, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchSentencias();
@@ -105,6 +115,7 @@ export default function BibliotecaPage() {
     setOrganoId('');
     setSelectedJuezIds([]);
     setSinJueces(false);
+    setPalabraClave('');
     setFechaDesde('');
     setFechaHasta('');
   };
@@ -153,7 +164,7 @@ export default function BibliotecaPage() {
             Filtros
             {hasFilters && (
               <span className="bg-purple-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                {[jurisdiccion, instanciaId, organoId, selectedJuezIds.length > 0, sinJueces, fechaDesde, fechaHasta].filter(Boolean).length}
+                {[jurisdiccion, instanciaId, organoId, selectedJuezIds.length > 0, sinJueces, palabraClave, fechaDesde, fechaHasta].filter(Boolean).length}
               </span>
             )}
           </button>
@@ -317,6 +328,19 @@ export default function BibliotecaPage() {
             </div>
 
             <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Palabra clave</label>
+              <select value={palabraClave} onChange={e => setPalabraClave(e.target.value)} className="input">
+                <option value="">Todas</option>
+                {palabraClave && !palabrasClave.some(k => k.nombre.toLowerCase() === palabraClave.toLowerCase()) && (
+                  <option value={palabraClave}>{palabraClave}</option>
+                )}
+                {palabrasClave.map(k => (
+                  <option key={k.nombre} value={k.nombre}>{k.nombre} ({k.cantidad})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha desde</label>
               <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)} className="input" />
             </div>
@@ -367,7 +391,7 @@ export default function BibliotecaPage() {
         <>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {sentencias.map(s => (
-              <SentenciaCard key={s.id} sentencia={s} />
+              <SentenciaCard key={s.id} sentencia={s} onKeyword={k => { setPalabraClave(k); setShowFilters(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
             ))}
           </div>
 
@@ -398,7 +422,7 @@ export default function BibliotecaPage() {
   );
 }
 
-function SentenciaCard({ sentencia: s }: { sentencia: Sentencia }) {
+function SentenciaCard({ sentencia: s, onKeyword }: { sentencia: Sentencia; onKeyword: (k: string) => void }) {
   const fecha = s.fecha_sentencia
     ? new Date(s.fecha_sentencia + 'T00:00:00').toLocaleDateString('es-AR', {
         day: '2-digit', month: 'short', year: 'numeric',
@@ -456,7 +480,15 @@ function SentenciaCard({ sentencia: s }: { sentencia: Sentencia }) {
       {s.palabras_clave && s.palabras_clave.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-3">
           {s.palabras_clave.slice(0, 3).map(k => (
-            <span key={k} className="bg-purple-50 text-purple-600 text-xs px-2 py-0.5 rounded-full">{k}</span>
+            <button
+              key={k}
+              type="button"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); onKeyword(k); }}
+              title={`Filtrar por "${k}"`}
+              className="bg-purple-50 text-purple-600 text-xs px-2 py-0.5 rounded-full hover:bg-purple-100"
+            >
+              {k}
+            </button>
           ))}
           {s.palabras_clave.length > 3 && (
             <span className="text-gray-400 text-xs">+{s.palabras_clave.length - 3}</span>

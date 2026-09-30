@@ -172,10 +172,16 @@ export const listSentencias = async (params?: {
   organo_id?: number;
   juez_id?: string | number;
   sin_jueces?: boolean;
+  palabra_clave?: string;
   fecha_desde?: string;
   fecha_hasta?: string;
 }): Promise<{ total: number; sentencias: Sentencia[] }> => {
   const response = await api.get('/sentencias/', { params });
+  return response.data;
+};
+
+export const listPalabrasClave = async (): Promise<{ nombre: string; cantidad: number }[]> => {
+  const response = await api.get('/sentencias/palabras-clave');
   return response.data;
 };
 

@@ -63,6 +63,7 @@ def list_sentencias(
     organo_id: Optional[int] = None,
     juez_id: Optional[str] = None,
     sin_jueces: Optional[bool] = Query(None),
+    palabra_clave: Optional[str] = None,
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
     db: Session = Depends(get_db)
@@ -121,6 +122,15 @@ def list_sentencias(
         except ValueError:
             pass
 
+    if palabra_clave:
+        # Coincidencia exacta (sin distinguir mayúsculas) contra alguna palabra clave del array
+        from sqlalchemy import text as sqltext
+        query = query.filter(
+            sqltext(
+                "EXISTS (SELECT 1 FROM unnest(sentencias.palabras_clave) k WHERE lower(k) = lower(:pc))"
+            ).bindparams(pc=palabra_clave.strip())
+        )
+
     if fecha_desde:
         query = query.filter(Sentencia.fecha_sentencia >= fecha_desde)
 
@@ -131,6 +141,18 @@ def list_sentencias(
     sentencias = query.order_by(Sentencia.fecha_sentencia.desc().nullslast(), Sentencia.created_at.desc()).offset(skip).limit(limit).all()
 
     return SentenciaListResponse(total=total, sentencias=[_map_sentencia(s) for s in sentencias])
+
+
+@router.get("/palabras-clave")
+def list_palabras_clave(db: Session = Depends(get_db)):
+    """Palabras clave existentes con su cantidad de sentencias (agrupadas sin distinguir mayúsculas)"""
+    from sqlalchemy import text as sqltext
+    rows = db.execute(sqltext(
+        "SELECT min(k) AS nombre, count(DISTINCT id) AS cantidad "
+        "FROM (SELECT id, unnest(palabras_clave) AS k FROM sentencias) t "
+        "WHERE trim(k) <> '' GROUP BY lower(k) ORDER BY count(DISTINCT id) DESC, min(k)"
+    )).all()
+    return [{"nombre": r.nombre, "cantidad": r.cantidad} for r in rows]
 
 
 @router.get("/{sentencia_id}", response_model=SentenciaResponse)
