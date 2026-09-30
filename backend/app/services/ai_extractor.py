@@ -91,16 +91,7 @@ JSON:
 
         except Exception as e:
             print(f"Error al extraer metadata con IA: {e}")
-            return {
-                "caratula": None,
-                "nro_expediente": None,
-                "fecha_sentencia": None,
-                "instancia": None,
-                "organo": None,
-                "jurisdiccion": None,
-                "palabras_clave": [],
-                "resumen": None
-            }
+            raise
 
     def extract_judges_from_image(self, image_base64: str, known_judges: List[Dict[str, str]]) -> List[str]:
         """

@@ -127,7 +127,14 @@ async def upload_sentencia(
         extracted_metadata = ai_extractor.extract_metadata_from_text(full_text)
     except Exception as e:
         print(f"Error en extracción de metadata: {e}")
-        extracted_metadata = {}
+        try:
+            minio_client.delete_file(object_name)
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Falló el análisis con IA (revisá OPENAI_API_KEY/crédito): {str(e)[:200]}"
+        )
 
     # 7. Extraer jueces (Primero Criptográfico, luego Claude Vision)
     extracted_judges_names = []

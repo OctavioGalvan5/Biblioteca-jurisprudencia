@@ -19,6 +19,13 @@ class PDFProcessor:
 
     @staticmethod
     def extract_text(file_data: bytes) -> str:
+        """Extrae el texto y lo limpia de caracteres que rompen JSON/UTF-8/PostgreSQL."""
+        text = PDFProcessor._extract_text_raw(file_data)
+        # Los surrogates sueltos no se pueden codificar a UTF-8 y NUL no entra en Postgres.
+        return text.replace("\x00", "").encode("utf-8", "ignore").decode("utf-8")
+
+    @staticmethod
+    def _extract_text_raw(file_data: bytes) -> str:
         """
         Extract text from PDF with automatic OCR fallback.
         Strategy: native extraction → Tesseract → GPT-4o Vision
