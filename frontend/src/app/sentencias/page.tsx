@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Search, Filter, FileText, Calendar, Building2, User, ChevronLeft, ChevronRight, X, ChevronDown } from 'lucide-react';
 import {
@@ -26,6 +26,7 @@ export default function BibliotecaPage() {
   const [palabrasClave, setPalabrasClave] = useState<{ nombre: string; cantidad: number }[]>([]);
   const [palabraClave, setPalabraClave] = useState('');
   const [loading, setLoading] = useState(true);
+  const requestId = useRef(0);
   const [page, setPage] = useState(0);
 
   const [q, setQ] = useState('');
@@ -45,6 +46,7 @@ export default function BibliotecaPage() {
   const hasFilters = !!(jurisdiccion || instanciaId || organoId || selectedJuezIds.length > 0 || sinJueces || palabraClave || subidaDesde || subidaHasta || fechaDesde || fechaHasta);
 
   const fetchSentencias = useCallback(async () => {
+    const myId = ++requestId.current;
     setLoading(true);
     try {
       const data = await listSentencias({
@@ -62,12 +64,13 @@ export default function BibliotecaPage() {
         ...(fechaDesde && { fecha_desde: fechaDesde }),
         ...(fechaHasta && { fecha_hasta: fechaHasta }),
       });
+      if (myId !== requestId.current) return; // respuesta vieja: la pisó una consulta más reciente
       setSentencias(data.sentencias);
       setTotal(data.total);
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (myId === requestId.current) setLoading(false);
     }
   }, [page, q, jurisdiccion, instanciaId, organoId, selectedJuezIds, sinJueces, palabraClave, subidaDesde, subidaHasta, fechaDesde, fechaHasta]);
 
